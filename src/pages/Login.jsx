@@ -27,10 +27,40 @@ const Login = () => {
     }
   };
 
+  const detectInputType = (value) => {
+    // Check if it's an email (contains @)
+    if (value.includes('@')) {
+      return 'email';
+    }
+    // Check if it's a phone number (contains only digits, +, spaces, dashes, parentheses)
+    const phoneRegex = /^[\+\d\s\-\(\)]+$/;
+    if (phoneRegex.test(value) && value.replace(/[\s\-\(\)]/g, '').length >= 10) {
+      return 'phone';
+    }
+    return 'unknown';
+  };
+
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.emailOrPhone) newErrors.emailOrPhone = 'Email or phone number is required';
+    if (!formData.emailOrPhone) {
+      newErrors.emailOrPhone = 'Email or phone number is required';
+    } else {
+      const inputType = detectInputType(formData.emailOrPhone);
+      if (inputType === 'email') {
+        if (!/\S+@\S+\.\S+/.test(formData.emailOrPhone)) {
+          newErrors.emailOrPhone = 'Please enter a valid email address';
+        }
+      } else if (inputType === 'phone') {
+        const cleanPhone = formData.emailOrPhone.replace(/[\s\-\(\)]/g, '');
+        if (!/^\+?[1-9]\d{9,14}$/.test(cleanPhone)) {
+          newErrors.emailOrPhone = 'Please enter a valid phone number';
+        }
+      } else {
+        newErrors.emailOrPhone = 'Please enter a valid email address or phone number';
+      }
+    }
+
     if (!formData.password) newErrors.password = 'Password is required';
 
     setErrors(newErrors);
@@ -42,14 +72,26 @@ const Login = () => {
     if (validateForm()) {
       setIsLoading(true);
       try {
-        const response = await authAPI.login(formData);
+        // Prepare request body based on detected input type
+        const inputType = detectInputType(formData.emailOrPhone);
+        const requestBody = {
+          password: formData.password
+        };
+
+        if (inputType === 'email') {
+          requestBody.emailAddress = formData.emailOrPhone;
+        } else if (inputType === 'phone') {
+          requestBody.contactNumber = formData.emailOrPhone;
+        }
+
+        const response = await authAPI.login(requestBody);
         
-        // Store token in localStorage
+        // Store token and user data in localStorage
         localStorage.setItem('token', response.data.token);
         localStorage.setItem('userType', response.data.user.userType);
         localStorage.setItem('userData', JSON.stringify(response.data.user));
         
-        // Redirect to dashboard or home page
+        // Redirect to dashboard
         navigate('/dashboard');
       } catch (error) {
         console.error('Login error:', error);
@@ -102,7 +144,7 @@ const Login = () => {
                   className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200 ${
                     errors.emailOrPhone ? 'border-red-500' : 'border-gray-300'
                   }`}
-                  placeholder="Enter your email or phone"
+                  placeholder="Enter your email or phone number"
                 />
               </div>
               {errors.emailOrPhone && <p className="text-red-500 text-sm mt-1">{errors.emailOrPhone}</p>}
