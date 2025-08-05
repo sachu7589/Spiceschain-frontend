@@ -2,9 +2,12 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaLock, FaLeaf, FaWhatsapp } from 'react-icons/fa';
 import { authAPI } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
+import Swal from 'sweetalert2';
 
 const FarmerRegister = () => {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
@@ -23,6 +26,45 @@ const FarmerRegister = () => {
   });
 
   const [errors, setErrors] = useState({});
+
+  const SUCCESS_ALERT_CONFIG = {
+    position: 'top-end',
+    timer: 5000,
+    timerProgressBar: true,
+    toast: true,
+    showConfirmButton: false,
+    allowOutsideClick: false,
+    customClass: {
+      popup: 'swal2-toast',
+      title: 'swal2-toast-title',
+      content: 'swal2-toast-content'
+    }
+  };
+
+  const showSuccessAlert = (message) => {
+    Swal.fire({
+      title: 'Success!',
+      text: message,
+      icon: 'success',
+      ...SUCCESS_ALERT_CONFIG
+    });
+  };
+
+  const showErrorAlert = (message) => {
+    Swal.fire({
+      title: 'Registration Failed!',
+      text: message,
+      icon: 'error',
+      confirmButtonText: 'OK',
+      confirmButtonColor: '#ef4444',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      customClass: {
+        confirmButton: 'swal2-confirm-error',
+        popup: 'swal2-error-popup'
+      }
+    });
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -74,17 +116,18 @@ const FarmerRegister = () => {
         
         const response = await authAPI.registerFarmer(apiData);
         
-        // Store token in localStorage
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('userType', 'farmer');
-        localStorage.setItem('userData', JSON.stringify(response.data.farmer));
+        // Show success alert
+        showSuccessAlert('Farmer account created successfully! Welcome to SpicesChain!');
         
-        // Redirect to dashboard or home page
-        navigate('/dashboard');
+        // Add a small delay to ensure the alert is visible before redirecting
+        setTimeout(() => {
+          // Use the auth context to login
+          login(response.data.token, response.data.farmer);
+        }, 1000);
       } catch (error) {
         console.error('Registration error:', error);
         const errorMessage = error.response?.data?.message || 'Registration failed. Please try again.';
-        alert(errorMessage);
+        showErrorAlert(errorMessage);
       } finally {
         setIsLoading(false);
       }

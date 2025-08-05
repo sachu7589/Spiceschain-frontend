@@ -32,8 +32,10 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Only redirect on 401 if it's not a login request
-    if (error.response?.status === 401 && !error.config.url.includes('/login')) {
+    // Only redirect on 401 if it's not a login or registration request
+    if (error.response?.status === 401 && 
+        !error.config.url.includes('/login') && 
+        !error.config.url.includes('/register')) {
       localStorage.removeItem('token');
       localStorage.removeItem('userData');
       localStorage.removeItem('userType');
