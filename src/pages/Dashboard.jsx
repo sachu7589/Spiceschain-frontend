@@ -1,34 +1,11 @@
-import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React from 'react';
 import { FaLeaf, FaBuilding, FaSignOutAlt, FaUser } from 'react-icons/fa';
+import { useAuth } from '../context/AuthContext';
 
 const Dashboard = () => {
-  const navigate = useNavigate();
-  const [userData, setUserData] = useState(null);
+  const { user, logout } = useAuth();
 
-  useEffect(() => {
-    const token = localStorage.getItem('token');
-    const userType = localStorage.getItem('userType');
-    const storedUserData = localStorage.getItem('userData');
-
-    if (!token) {
-      navigate('/login');
-      return;
-    }
-
-    if (storedUserData) {
-      setUserData(JSON.parse(storedUserData));
-    }
-  }, [navigate]);
-
-  const handleLogout = () => {
-    localStorage.removeItem('token');
-    localStorage.removeItem('userType');
-    localStorage.removeItem('userData');
-    navigate('/login');
-  };
-
-  if (!userData) {
+  if (!user) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
@@ -54,10 +31,10 @@ const Dashboard = () => {
             <div className="flex items-center space-x-4">
               <div className="flex items-center space-x-2">
                 <FaUser className="text-gray-600" />
-                <span className="text-gray-700 font-medium">{userData.fullName}</span>
+                <span className="text-gray-700 font-medium">{user.fullName}</span>
               </div>
               <button
-                onClick={handleLogout}
+                onClick={logout}
                 className="flex items-center space-x-2 text-gray-600 hover:text-gray-900 transition-colors"
               >
                 <FaSignOutAlt />
@@ -72,17 +49,17 @@ const Dashboard = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-lg shadow-sm border p-6">
           <div className="flex items-center space-x-3 mb-6">
-            {userData.userType === 'farmer' ? (
+            {user.userType === 'farmer' ? (
               <FaLeaf className="text-green-600 text-2xl" />
             ) : (
               <FaBuilding className="text-blue-600 text-2xl" />
             )}
             <div>
               <h1 className="text-2xl font-bold text-gray-900">
-                Welcome, {userData.fullName}!
+                Welcome, {user.fullName}!
               </h1>
               <p className="text-gray-600">
-                You are registered as a {userData.userType}
+                You are registered as a {user.userType}
               </p>
             </div>
           </div>
@@ -91,18 +68,18 @@ const Dashboard = () => {
             <div className="bg-gradient-to-r from-green-500 to-emerald-600 text-white p-6 rounded-lg">
               <h3 className="text-lg font-semibold mb-2">Account Status</h3>
               <p className="text-green-100">
-                {userData.isVerified ? 'Verified' : 'Pending Verification'}
+                {user.isVerified ? 'Verified' : 'Pending Verification'}
               </p>
             </div>
 
             <div className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white p-6 rounded-lg">
               <h3 className="text-lg font-semibold mb-2">User Type</h3>
-              <p className="text-blue-100 capitalize">{userData.userType}</p>
+              <p className="text-blue-100 capitalize">{user.userType}</p>
             </div>
 
             <div className="bg-gradient-to-r from-purple-500 to-pink-600 text-white p-6 rounded-lg">
               <h3 className="text-lg font-semibold mb-2">User ID</h3>
-              <p className="text-purple-100 text-sm font-mono">{userData.id}</p>
+              <p className="text-purple-100 text-sm font-mono">{user.id}</p>
             </div>
           </div>
 
@@ -113,10 +90,10 @@ const Dashboard = () => {
                 • Complete your profile information
               </p>
               <p className="text-gray-600">
-                • {userData.userType === 'farmer' ? 'List your spices for sale' : 'Browse available spices'}
+                • {user.userType === 'farmer' ? 'List your spices for sale' : 'Browse available spices'}
               </p>
               <p className="text-gray-600">
-                • Connect with {userData.userType === 'farmer' ? 'buyers' : 'farmers'}
+                • Connect with {user.userType === 'farmer' ? 'buyers' : 'farmers'}
               </p>
               <p className="text-gray-600">
                 • Start trading on the platform

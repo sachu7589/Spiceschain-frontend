@@ -1,3 +1,41 @@
 @tailwind base;
 @tailwind components;
-@tailwind utilities; 
+@tailwind utilities;
+
+/* SweetAlert2 Custom Styles */
+.swal2-toast {
+  @apply rounded-lg shadow-lg border-0;
+}
+
+.swal2-toast.swal2-icon-success {
+  @apply bg-emerald-500 text-white;
+}
+
+.swal2-toast.swal2-icon-error {
+  @apply bg-red-500 text-white;
+}
+
+.swal2-toast-title {
+  @apply text-sm font-semibold;
+}
+
+.swal2-toast-content {
+  @apply text-xs;
+}
+
+.swal2-confirm-error {
+  @apply bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded-lg font-medium;
+}
+
+/* Error alert specific styles */
+.swal2-error-popup {
+  @apply border-2 border-red-500 shadow-2xl;
+}
+
+.swal2-error-popup .swal2-title {
+  @apply text-red-700 font-bold text-xl;
+}
+
+.swal2-error-popup .swal2-content {
+  @apply text-gray-700 text-base;
+} 

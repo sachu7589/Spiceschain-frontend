@@ -1,20 +1,41 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom'
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
 import LandingPage from './components/LandingPage'
 import Login from './pages/Login'
 import FarmerRegister from './pages/register/FarmerRegister'
 import BuyerRegister from './pages/register/BuyerRegister'
 import Dashboard from './pages/Dashboard'
+import ProtectedRoute from './components/ProtectedRoute'
+import AuthRedirect from './components/AuthRedirect'
 
 function App() {
   return (
     <Router>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/register/farmer" element={<FarmerRegister />} />
-        <Route path="/register/buyer" element={<BuyerRegister />} />
-        <Route path="/dashboard" element={<Dashboard />} />
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<LandingPage />} />
+          <Route path="/login" element={
+            <AuthRedirect>
+              <Login />
+            </AuthRedirect>
+          } />
+          <Route path="/register/farmer" element={
+            <AuthRedirect>
+              <FarmerRegister />
+            </AuthRedirect>
+          } />
+          <Route path="/register/buyer" element={
+            <AuthRedirect>
+              <BuyerRegister />
+            </AuthRedirect>
+          } />
+          <Route path="/dashboard" element={
+            <ProtectedRoute>
+              <Dashboard />
+            </ProtectedRoute>
+          } />
+        </Routes>
+      </AuthProvider>
     </Router>
   )
 }

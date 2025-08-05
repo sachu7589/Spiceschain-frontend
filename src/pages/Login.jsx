@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { authAPI } from '../services/api';
+import { useAuth } from '../context/AuthContext';
+import Swal from 'sweetalert2';
 
 const Login = () => {
-  const navigate = useNavigate();
+  const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     emailOrPhone: '',
@@ -11,6 +13,45 @@ const Login = () => {
   });
 
   const [errors, setErrors] = useState({});
+
+  const SUCCESS_ALERT_CONFIG = {
+    position: 'top-end',
+    timer: 5000,
+    timerProgressBar: true,
+    toast: true,
+    showConfirmButton: false,
+    allowOutsideClick: false,
+    customClass: {
+      popup: 'swal2-toast',
+      title: 'swal2-toast-title',
+      content: 'swal2-toast-content'
+    }
+  };
+
+  const showSuccessAlert = (message) => {
+    Swal.fire({
+      title: 'Success!',
+      text: message,
+      icon: 'success',
+      ...SUCCESS_ALERT_CONFIG
+    });
+  };
+
+  const showErrorAlert = (message) => {
+    Swal.fire({
+      title: 'Login Failed!',
+      text: message,
+      icon: 'error',
+      confirmButtonText: 'OK',
+      confirmButtonColor: '#ef4444',
+      allowOutsideClick: false,
+      allowEscapeKey: false,
+      customClass: {
+        confirmButton: 'swal2-confirm-error',
+        popup: 'swal2-error-popup'
+      }
+    });
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -33,8 +74,8 @@ const Login = () => {
       return 'email';
     }
     // Check if it's a phone number (contains only digits, +, spaces, dashes, parentheses)
-    const phoneRegex = /^[\+\d\s\-\(\)]+$/;
-    if (phoneRegex.test(value) && value.replace(/[\s\-\(\)]/g, '').length >= 10) {
+    const phoneRegex = /^[+\d\s\-()]+$/;
+    if (phoneRegex.test(value) && value.replace(/[\s\-()]/g, '').length >= 10) {
       return 'phone';
     }
     return 'unknown';
@@ -52,7 +93,7 @@ const Login = () => {
           newErrors.emailOrPhone = 'Please enter a valid email address';
         }
       } else if (inputType === 'phone') {
-        const cleanPhone = formData.emailOrPhone.replace(/[\s\-\(\)]/g, '');
+        const cleanPhone = formData.emailOrPhone.replace(/[\s\-()]/g, '');
         if (!/^\+?[1-9]\d{9,14}$/.test(cleanPhone)) {
           newErrors.emailOrPhone = 'Please enter a valid phone number';
         }
@@ -86,17 +127,18 @@ const Login = () => {
 
         const response = await authAPI.login(requestBody);
         
-        // Store token and user data in localStorage
-        localStorage.setItem('token', response.data.token);
-        localStorage.setItem('userType', response.data.user.userType);
-        localStorage.setItem('userData', JSON.stringify(response.data.user));
+        // Show success alert
+        showSuccessAlert('Login successful! Welcome back.');
         
-        // Redirect to dashboard
-        navigate('/dashboard');
+        // Add a small delay to ensure the alert is visible before redirecting
+        setTimeout(() => {
+          // Use the auth context to login
+          login(response.data.token, response.data.user);
+        }, 1000);
       } catch (error) {
         console.error('Login error:', error);
-        const errorMessage = error.response?.data?.message || 'Login failed. Please try again.';
-        alert(errorMessage);
+        const errorMessage = error.response?.data?.message || 'Login failed. Please check your credentials and try again.';
+        showErrorAlert(errorMessage);
       } finally {
         setIsLoading(false);
       }
