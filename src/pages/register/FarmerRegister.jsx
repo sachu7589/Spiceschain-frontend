@@ -1,8 +1,11 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaLock, FaLeaf, FaWhatsapp } from 'react-icons/fa';
+import { authAPI } from '../../services/api';
 
 const FarmerRegister = () => {
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
     gender: '',
@@ -61,11 +64,30 @@ const FarmerRegister = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (validateForm()) {
-      console.log('Form submitted:', formData);
-      // Handle form submission here
+      setIsLoading(true);
+      try {
+        // Remove confirmPassword from the data sent to API
+        const { confirmPassword, ...apiData } = formData;
+        
+        const response = await authAPI.registerFarmer(apiData);
+        
+        // Store token in localStorage
+        localStorage.setItem('token', response.data.token);
+        localStorage.setItem('userType', 'farmer');
+        localStorage.setItem('userData', JSON.stringify(response.data.farmer));
+        
+        // Redirect to dashboard or home page
+        navigate('/dashboard');
+      } catch (error) {
+        console.error('Registration error:', error);
+        const errorMessage = error.response?.data?.message || 'Registration failed. Please try again.';
+        alert(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -392,9 +414,10 @@ const FarmerRegister = () => {
               <div className="pt-4 sm:pt-6">
                 <button
                   type="submit"
-                  className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold py-3 sm:py-4 px-6 rounded-lg hover:from-green-600 hover:to-emerald-700 focus:ring-4 focus:ring-green-200 transition-all duration-200 transform hover:scale-[1.02]"
+                  disabled={isLoading}
+                  className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white font-semibold py-3 sm:py-4 px-6 rounded-lg hover:from-green-600 hover:to-emerald-700 focus:ring-4 focus:ring-green-200 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  Create Farmer Account
+                  {isLoading ? 'Creating Account...' : 'Create Farmer Account'}
                 </button>
               </div>
 

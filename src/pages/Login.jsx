@@ -1,7 +1,10 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
+import { authAPI } from '../services/api';
 
 const Login = () => {
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     emailOrPhone: '',
     password: ''
@@ -34,11 +37,27 @@ const Login = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (validateForm()) {
-      console.log('Login data:', formData);
-      // Handle login logic here
+      setIsLoading(true);
+      try {
+        const response = await authAPI.login(formData);
+        
+        // Store token in localStorage
+        localStorage.setItem('token', response.data.token);
+        localStorage.setItem('userType', response.data.user.userType);
+        localStorage.setItem('userData', JSON.stringify(response.data.user));
+        
+        // Redirect to dashboard or home page
+        navigate('/dashboard');
+      } catch (error) {
+        console.error('Login error:', error);
+        const errorMessage = error.response?.data?.message || 'Login failed. Please try again.';
+        alert(errorMessage);
+      } finally {
+        setIsLoading(false);
+      }
     }
   };
 
@@ -128,9 +147,10 @@ const Login = () => {
 
             <button
               type="submit"
-              className="w-full bg-gradient-to-r from-emerald-600 to-teal-700 text-white py-3 px-6 rounded-xl font-semibold hover:from-emerald-700 hover:to-teal-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              disabled={isLoading}
+              className="w-full bg-gradient-to-r from-emerald-600 to-teal-700 text-white py-3 px-6 rounded-xl font-semibold hover:from-emerald-700 hover:to-teal-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              Sign In
+              {isLoading ? 'Signing In...' : 'Sign In'}
             </button>
 
             <div className="relative">
