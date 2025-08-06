@@ -4,6 +4,7 @@ import { FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaLock, FaLeaf, FaWhatsapp
 import { authAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import Swal from 'sweetalert2';
+import GoogleAuth from '../../components/GoogleAuth';
 
 const FarmerRegister = () => {
   const navigate = useNavigate();
@@ -173,6 +174,9 @@ const FarmerRegister = () => {
           {/* Form */}
           <div className="p-4 sm:p-6 lg:p-8">
             <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
+              {/* Google Sign In Button */}
+              <GoogleAuth userType="farmer" />
+
               {/* Personal Information Section */}
               <div>
                 <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6 flex items-center">

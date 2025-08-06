@@ -64,6 +64,12 @@ export const authAPI = {
     const response = await api.post('/api/auth/login', credentials);
     return response.data;
   },
+
+  // Google login
+  googleLogin: async (googleData) => {
+    const response = await api.post('/api/auth/google/login', googleData);
+    return response.data;
+  },
 };
 
 export default api; 

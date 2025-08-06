@@ -1,15 +1,15 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaLock, FaBuilding, FaBriefcase } from 'react-icons/fa';
+import { FaUser, FaPhone, FaEnvelope, FaMapMarkerAlt, FaLock, FaBuilding, FaBriefcase, FaGoogle } from 'react-icons/fa';
 import { authAPI } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 import Swal from 'sweetalert2';
-import GoogleAuth from '../../components/GoogleAuth';
 
-const BuyerRegister = () => {
+const BuyerRegisterGoogle = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [googleData, setGoogleData] = useState(null);
   const [formData, setFormData] = useState({
     fullName: '',
     businessName: '',
@@ -22,11 +22,30 @@ const BuyerRegister = () => {
     district: '',
     state: '',
     pincode: '',
-    password: '',
-    confirmPassword: ''
+    password: 'google-auth', // Fixed password for Google auth
+    confirmPassword: 'google-auth'
   });
 
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    // Get Google data from sessionStorage
+    const storedGoogleData = sessionStorage.getItem('googleAuthData');
+    if (storedGoogleData) {
+      const data = JSON.parse(storedGoogleData);
+      setGoogleData(data);
+      
+      // Pre-fill form with Google data
+      setFormData(prev => ({
+        ...prev,
+        fullName: data.name || '',
+        emailAddress: data.email || ''
+      }));
+    } else {
+      // If no Google data, redirect back to regular registration
+      navigate('/register/buyer');
+    }
+  }, [navigate]);
 
   const SUCCESS_ALERT_CONFIG = {
     position: 'top-end',
@@ -99,11 +118,6 @@ const BuyerRegister = () => {
     if (!formData.district.trim()) newErrors.district = 'District is required';
     if (!formData.state.trim()) newErrors.state = 'State is required';
     if (!formData.pincode.trim()) newErrors.pincode = 'Pincode is required';
-    if (!formData.password) newErrors.password = 'Password is required';
-    if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
-    if (formData.password !== formData.confirmPassword) {
-      newErrors.confirmPassword = 'Passwords do not match';
-    }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -118,6 +132,9 @@ const BuyerRegister = () => {
         const { confirmPassword, ...apiData } = formData;
         
         const response = await authAPI.registerBuyer(apiData);
+        
+        // Clear Google data from sessionStorage
+        sessionStorage.removeItem('googleAuthData');
         
         // Show success alert
         showSuccessAlert('Buyer account created successfully! Welcome to SpicesChain!');
@@ -136,6 +153,17 @@ const BuyerRegister = () => {
       }
     }
   };
+
+  if (!googleData) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
@@ -166,19 +194,16 @@ const BuyerRegister = () => {
           <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 sm:px-8 py-4 sm:py-6">
             <div className="text-center">
               <div className="w-12 h-12 sm:w-16 sm:h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
-                <FaBuilding className="text-white text-lg sm:text-2xl" />
+                <FaGoogle className="text-white text-lg sm:text-2xl" />
               </div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Join as a Buyer</h1>
-              <p className="text-blue-100 text-sm sm:text-base">Connect with farmers and source quality spices</p>
+              <h1 className="text-2xl sm:text-3xl font-bold text-white mb-1 sm:mb-2">Complete Your Buyer Profile</h1>
+              <p className="text-blue-100 text-sm sm:text-base">Signed in with Google • {googleData.email}</p>
             </div>
           </div>
 
           {/* Form */}
           <div className="p-4 sm:p-6 lg:p-8">
             <form onSubmit={handleSubmit} className="space-y-6 sm:space-y-8">
-              {/* Google Sign In Button */}
-              <GoogleAuth userType="buyer" />
-
               {/* Business Information Section */}
               <div>
                 <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6 flex items-center">
@@ -304,6 +329,7 @@ const BuyerRegister = () => {
                           errors.emailAddress ? 'border-red-500' : 'border-gray-300'
                         }`}
                         placeholder="Enter email address"
+                        readOnly
                       />
                     </div>
                     {errors.emailAddress && (
@@ -417,53 +443,6 @@ const BuyerRegister = () => {
                 </div>
               </div>
 
-              {/* Password Section */}
-              <div>
-                <h2 className="text-lg sm:text-xl font-semibold text-gray-900 mb-4 sm:mb-6 flex items-center">
-                  <FaLock className="mr-2 text-blue-600" />
-                  Password
-                </h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Password *
-                    </label>
-                    <input
-                      type="password"
-                      name="password"
-                      value={formData.password}
-                      onChange={handleChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                        errors.password ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Enter password"
-                    />
-                    {errors.password && (
-                      <p className="text-red-500 text-sm mt-1">{errors.password}</p>
-                    )}
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Confirm Password *
-                    </label>
-                    <input
-                      type="password"
-                      name="confirmPassword"
-                      value={formData.confirmPassword}
-                      onChange={handleChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                        errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Confirm password"
-                    />
-                    {errors.confirmPassword && (
-                      <p className="text-red-500 text-sm mt-1">{errors.confirmPassword}</p>
-                    )}
-                  </div>
-                </div>
-              </div>
-
               {/* Submit Button */}
               <div className="pt-4 sm:pt-6">
                 <button
@@ -471,7 +450,7 @@ const BuyerRegister = () => {
                   disabled={isLoading}
                   className="w-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-semibold py-3 sm:py-4 px-6 rounded-lg hover:from-blue-600 hover:to-indigo-700 focus:ring-4 focus:ring-blue-200 transition-all duration-200 transform hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {isLoading ? 'Creating Account...' : 'Create Buyer Account'}
+                  {isLoading ? 'Creating Account...' : 'Complete Registration'}
                 </button>
               </div>
 
@@ -492,4 +471,4 @@ const BuyerRegister = () => {
   );
 };
 
-export default BuyerRegister; 
+export default BuyerRegisterGoogle; 
