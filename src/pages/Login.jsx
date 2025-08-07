@@ -15,6 +15,102 @@ const Login = () => {
 
   const [errors, setErrors] = useState({});
 
+  // Validation functions
+  const validateEmailOrPhone = (value) => {
+    if (!value) return 'Email or phone number is required';
+    
+    const inputType = detectInputType(value);
+    if (inputType === 'email') {
+      if (!/\S+@\S+\.\S+/.test(value)) {
+        return 'Please enter a valid email address';
+      }
+    } else if (inputType === 'phone') {
+      const cleanPhone = value.replace(/[\s\-()]/g, '');
+      if (!/^\+?[1-9]\d{9,14}$/.test(cleanPhone)) {
+        return 'Please enter a valid phone number';
+      }
+    } else {
+      return 'Please enter a valid email address or phone number';
+    }
+    return '';
+  };
+
+  const validatePassword = (value) => {
+    if (!value) return 'Password is required';
+    if (value.length < 6) return 'Password must be at least 6 characters long';
+    return '';
+  };
+
+  const detectInputType = (value) => {
+    // Check if it's an email (contains @)
+    if (value.includes('@')) {
+      return 'email';
+    }
+    // Check if it's a phone number (contains only digits, +, spaces, dashes, parentheses)
+    const phoneRegex = /^[+\d\s\-()]+$/;
+    if (phoneRegex.test(value) && value.replace(/[\s\-()]/g, '').length >= 10) {
+      return 'phone';
+    }
+    return 'unknown';
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Clear error when user starts typing
+    if (errors[name]) {
+      setErrors(prev => ({
+        ...prev,
+        [name]: ''
+      }));
+    }
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    let error = '';
+    
+    switch (name) {
+      case 'emailOrPhone':
+        error = validateEmailOrPhone(value);
+        break;
+      case 'password':
+        error = validatePassword(value);
+        break;
+      default:
+        break;
+    }
+    
+    setErrors(prev => ({
+      ...prev,
+      [name]: error
+    }));
+  };
+
+  const handleKeyUp = (e) => {
+    const { name, value } = e.target;
+    let error = '';
+    
+    switch (name) {
+      case 'emailOrPhone':
+        error = validateEmailOrPhone(value);
+        break;
+      case 'password':
+        error = validatePassword(value);
+        break;
+      default:
+        break;
+    }
+    
+    setErrors(prev => ({
+      ...prev,
+      [name]: error
+    }));
+  };
+
   const SUCCESS_ALERT_CONFIG = {
     position: 'top-end',
     timer: 5000,
@@ -54,56 +150,16 @@ const Login = () => {
     });
   };
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
-    // Clear error when user starts typing
-    if (errors[name]) {
-      setErrors(prev => ({
-        ...prev,
-        [name]: ''
-      }));
-    }
-  };
-
-  const detectInputType = (value) => {
-    // Check if it's an email (contains @)
-    if (value.includes('@')) {
-      return 'email';
-    }
-    // Check if it's a phone number (contains only digits, +, spaces, dashes, parentheses)
-    const phoneRegex = /^[+\d\s\-()]+$/;
-    if (phoneRegex.test(value) && value.replace(/[\s\-()]/g, '').length >= 10) {
-      return 'phone';
-    }
-    return 'unknown';
-  };
-
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.emailOrPhone) {
-      newErrors.emailOrPhone = 'Email or phone number is required';
-    } else {
-      const inputType = detectInputType(formData.emailOrPhone);
-      if (inputType === 'email') {
-        if (!/\S+@\S+\.\S+/.test(formData.emailOrPhone)) {
-          newErrors.emailOrPhone = 'Please enter a valid email address';
-        }
-      } else if (inputType === 'phone') {
-        const cleanPhone = formData.emailOrPhone.replace(/[\s\-()]/g, '');
-        if (!/^\+?[1-9]\d{9,14}$/.test(cleanPhone)) {
-          newErrors.emailOrPhone = 'Please enter a valid phone number';
-        }
-      } else {
-        newErrors.emailOrPhone = 'Please enter a valid email address or phone number';
-      }
-    }
+    // Validate email or phone
+    const emailOrPhoneError = validateEmailOrPhone(formData.emailOrPhone);
+    if (emailOrPhoneError) newErrors.emailOrPhone = emailOrPhoneError;
 
-    if (!formData.password) newErrors.password = 'Password is required';
+    // Validate password
+    const passwordError = validatePassword(formData.password);
+    if (passwordError) newErrors.password = passwordError;
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
@@ -184,6 +240,8 @@ const Login = () => {
                   name="emailOrPhone"
                   value={formData.emailOrPhone}
                   onChange={handleChange}
+                  onBlur={handleBlur}
+                  onKeyUp={handleKeyUp}
                   className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200 ${
                     errors.emailOrPhone ? 'border-red-500' : 'border-gray-300'
                   }`}
@@ -208,6 +266,8 @@ const Login = () => {
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
+                  onBlur={handleBlur}
+                  onKeyUp={handleKeyUp}
                   className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 transition-all duration-200 ${
                     errors.password ? 'border-red-500' : 'border-gray-300'
                   }`}

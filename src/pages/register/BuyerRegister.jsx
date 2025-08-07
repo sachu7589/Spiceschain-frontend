@@ -10,12 +10,14 @@ const BuyerRegister = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [isPincodeLoading, setIsPincodeLoading] = useState(false);
   const [formData, setFormData] = useState({
     fullName: '',
     businessName: '',
     businessType: '',
     yearsInBusiness: '',
     contactNumber: '',
+    whatsappNumber: '',
     emailAddress: '',
     registeredOfficeAddress: '',
     city: '',
@@ -27,6 +29,68 @@ const BuyerRegister = () => {
   });
 
   const [errors, setErrors] = useState({});
+
+  // Validation functions
+  const validateName = (name) => {
+    if (!name.trim()) return 'Name is required';
+    if (name.trim().length < 3) return 'Name must be at least 3 characters';
+    if (!/^[a-zA-Z\s]+$/.test(name.trim())) return 'Name can only contain alphabets and spaces';
+    if (name.trim().length >= 3 && /^(.)\1+$/.test(name.trim())) return 'Name cannot be all same characters';
+    return '';
+  };
+
+
+
+  const validatePhoneNumber = (number) => {
+    if (!number.trim()) return 'Phone number is required';
+    if (!/^\d{10}$/.test(number.trim())) return 'Phone number must be 10 digits';
+    if (!/^[6789]/.test(number.trim())) return 'Phone number must start with 6, 7, 8, or 9';
+    
+    // Check for 5 consecutive same digits
+    for (let i = 0; i <= number.length - 5; i++) {
+      const segment = number.slice(i, i + 5);
+      if (/^(\d)\1{4}$/.test(segment)) {
+        return 'Phone number cannot have 5 consecutive same digits';
+      }
+    }
+    return '';
+  };
+
+
+
+  const fetchAddressFromPincode = async (pincode) => {
+    if (pincode.length === 6 && /^\d{6}$/.test(pincode)) {
+      setIsPincodeLoading(true);
+      try {
+        const response = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+        const data = await response.json();
+        
+        if (data[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
+          const postOffice = data[0].PostOffice[0];
+          setFormData(prev => ({
+            ...prev,
+            district: postOffice.District || '',
+            state: postOffice.State || ''
+          }));
+        } else {
+          setFormData(prev => ({
+            ...prev,
+            district: '',
+            state: ''
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching pincode data:', error);
+        setFormData(prev => ({
+          ...prev,
+          district: '',
+          state: ''
+        }));
+      } finally {
+        setIsPincodeLoading(false);
+      }
+    }
+  };
 
   const SUCCESS_ALERT_CONFIG = {
     position: 'top-end',
@@ -73,6 +137,7 @@ const BuyerRegister = () => {
       ...prev,
       [name]: value
     }));
+    
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -80,27 +145,128 @@ const BuyerRegister = () => {
         [name]: ''
       }));
     }
+
+    // Auto-fetch address for pincode
+    if (name === 'pincode') {
+      fetchAddressFromPincode(value);
+    }
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    let error = '';
+
+    switch (name) {
+      case 'fullName':
+        error = validateName(value);
+        break;
+      case 'contactNumber':
+        error = validatePhoneNumber(value);
+        break;
+      case 'whatsappNumber':
+        error = validatePhoneNumber(value);
+        break;
+      case 'emailAddress':
+        if (!value.trim()) {
+          error = 'Email address is required';
+        } else if (!/\S+@\S+\.\S+/.test(value)) {
+          error = 'Please enter a valid email address';
+        }
+        break;
+      case 'registeredOfficeAddress':
+        if (!value.trim()) error = 'Registered office address is required';
+        break;
+      case 'city':
+        if (!value.trim()) error = 'City is required';
+        break;
+      case 'district':
+        if (!value.trim()) error = 'District is required';
+        break;
+      case 'state':
+        if (!value.trim()) error = 'State is required';
+        break;
+      case 'pincode':
+        if (!value.trim()) error = 'Pincode is required';
+        break;
+      case 'password':
+        if (!value) error = 'Password is required';
+        else if (value.length < 6) error = 'Password must be at least 6 characters';
+        break;
+      case 'confirmPassword':
+        if (!value) error = 'Confirm password is required';
+        else if (value !== formData.password) error = 'Passwords do not match';
+        break;
+      default:
+        break;
+    }
+
+    setErrors(prev => ({
+      ...prev,
+      [name]: error
+    }));
+  };
+
+  const handleKeyUp = (e) => {
+    const { name, value } = e.target;
+    let error = '';
+
+    switch (name) {
+      case 'fullName':
+        error = validateName(value);
+        break;
+      case 'contactNumber':
+        error = validatePhoneNumber(value);
+        break;
+      case 'whatsappNumber':
+        error = validatePhoneNumber(value);
+        break;
+      default:
+        break;
+    }
+
+    setErrors(prev => ({
+      ...prev,
+      [name]: error
+    }));
   };
 
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.fullName.trim()) newErrors.fullName = 'Full name is required';
+    // Validate name
+    const nameError = validateName(formData.fullName);
+    if (nameError) newErrors.fullName = nameError;
+
+    // Validate business fields
     if (!formData.businessName.trim()) newErrors.businessName = 'Business name is required';
     if (!formData.businessType) newErrors.businessType = 'Business type is required';
     if (!formData.yearsInBusiness) newErrors.yearsInBusiness = 'Years in business is required';
-    if (!formData.contactNumber.trim()) newErrors.contactNumber = 'Contact number is required';
+
+
+
+    // Validate phone numbers
+    const contactError = validatePhoneNumber(formData.contactNumber);
+    if (contactError) newErrors.contactNumber = contactError;
+
+    const whatsappError = validatePhoneNumber(formData.whatsappNumber);
+    if (whatsappError) newErrors.whatsappNumber = whatsappError;
+
+    // Validate email
     if (!formData.emailAddress.trim()) newErrors.emailAddress = 'Email address is required';
-    if (!/\S+@\S+\.\S+/.test(formData.emailAddress)) {
+    else if (!/\S+@\S+\.\S+/.test(formData.emailAddress)) {
       newErrors.emailAddress = 'Please enter a valid email address';
     }
+
+    // Validate address fields
     if (!formData.registeredOfficeAddress.trim()) newErrors.registeredOfficeAddress = 'Registered office address is required';
     if (!formData.city.trim()) newErrors.city = 'City is required';
     if (!formData.district.trim()) newErrors.district = 'District is required';
     if (!formData.state.trim()) newErrors.state = 'State is required';
     if (!formData.pincode.trim()) newErrors.pincode = 'Pincode is required';
+
+    // Validate password
     if (!formData.password) newErrors.password = 'Password is required';
-    if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
+    else if (formData.password.length < 6) newErrors.password = 'Password must be at least 6 characters';
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
     }
@@ -195,6 +361,8 @@ const BuyerRegister = () => {
                       name="fullName"
                       value={formData.fullName}
                       onChange={handleChange}
+                      onBlur={handleBlur}
+                      onKeyUp={handleKeyUp}
                       className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                         errors.fullName ? 'border-red-500' : 'border-gray-300'
                       }`}
@@ -204,6 +372,8 @@ const BuyerRegister = () => {
                       <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>
                     )}
                   </div>
+
+
 
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -278,6 +448,8 @@ const BuyerRegister = () => {
                         name="contactNumber"
                         value={formData.contactNumber}
                         onChange={handleChange}
+                        onBlur={handleBlur}
+                        onKeyUp={handleKeyUp}
                         className={`w-full pl-10 pr-3 sm:pr-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                           errors.contactNumber ? 'border-red-500' : 'border-gray-300'
                         }`}
@@ -286,6 +458,30 @@ const BuyerRegister = () => {
                     </div>
                     {errors.contactNumber && (
                       <p className="text-red-500 text-sm mt-1">{errors.contactNumber}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      WhatsApp Number *
+                    </label>
+                    <div className="relative">
+                      <FaPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                      <input
+                        type="tel"
+                        name="whatsappNumber"
+                        value={formData.whatsappNumber}
+                        onChange={handleChange}
+                        onBlur={handleBlur}
+                        onKeyUp={handleKeyUp}
+                        className={`w-full pl-10 pr-3 sm:pr-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                          errors.whatsappNumber ? 'border-red-500' : 'border-gray-300'
+                        }`}
+                        placeholder="Enter WhatsApp number"
+                      />
+                    </div>
+                    {errors.whatsappNumber && (
+                      <p className="text-red-500 text-sm mt-1">{errors.whatsappNumber}</p>
                     )}
                   </div>
 
@@ -300,6 +496,7 @@ const BuyerRegister = () => {
                         name="emailAddress"
                         value={formData.emailAddress}
                         onChange={handleChange}
+                        onBlur={handleBlur}
                         className={`w-full pl-10 pr-3 sm:pr-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                           errors.emailAddress ? 'border-red-500' : 'border-gray-300'
                         }`}
@@ -328,6 +525,7 @@ const BuyerRegister = () => {
                       name="registeredOfficeAddress"
                       value={formData.registeredOfficeAddress}
                       onChange={handleChange}
+                      onBlur={handleBlur}
                       rows="3"
                       className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                         errors.registeredOfficeAddress ? 'border-red-500' : 'border-gray-300'
@@ -348,6 +546,7 @@ const BuyerRegister = () => {
                       name="city"
                       value={formData.city}
                       onChange={handleChange}
+                      onBlur={handleBlur}
                       className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                         errors.city ? 'border-red-500' : 'border-gray-300'
                       }`}
@@ -367,10 +566,12 @@ const BuyerRegister = () => {
                       name="district"
                       value={formData.district}
                       onChange={handleChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                      onBlur={handleBlur}
+                      readOnly
+                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-gray-50 ${
                         errors.district ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Enter district"
+                      } ${isPincodeLoading ? 'bg-gray-100' : ''}`}
+                      placeholder="Will be auto-filled from pincode"
                     />
                     {errors.district && (
                       <p className="text-red-500 text-sm mt-1">{errors.district}</p>
@@ -386,10 +587,12 @@ const BuyerRegister = () => {
                       name="state"
                       value={formData.state}
                       onChange={handleChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                      onBlur={handleBlur}
+                      readOnly
+                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all bg-gray-50 ${
                         errors.state ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Enter state"
+                      } ${isPincodeLoading ? 'bg-gray-100' : ''}`}
+                      placeholder="Will be auto-filled from pincode"
                     />
                     {errors.state && (
                       <p className="text-red-500 text-sm mt-1">{errors.state}</p>
@@ -400,16 +603,26 @@ const BuyerRegister = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Pincode *
                     </label>
-                    <input
-                      type="text"
-                      name="pincode"
-                      value={formData.pincode}
-                      onChange={handleChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
-                        errors.pincode ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Enter pincode"
-                    />
+                                         <div className="relative">
+                       <input
+                         type="text"
+                         name="pincode"
+                         value={formData.pincode}
+                         onChange={handleChange}
+                         onBlur={handleBlur}
+                         className={`w-full pl-10 pr-3 sm:pr-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
+                           errors.pincode ? 'border-red-500' : 'border-gray-300'
+                         }`}
+                         placeholder="Enter pincode"
+                         maxLength="6"
+                         disabled={isPincodeLoading}
+                       />
+                       {isPincodeLoading && (
+                         <div className="absolute inset-0 flex items-center justify-center">
+                           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500"></div>
+                         </div>
+                       )}
+                     </div>
                     {errors.pincode && (
                       <p className="text-red-500 text-sm mt-1">{errors.pincode}</p>
                     )}
@@ -433,6 +646,7 @@ const BuyerRegister = () => {
                       name="password"
                       value={formData.password}
                       onChange={handleChange}
+                      onBlur={handleBlur}
                       className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                         errors.password ? 'border-red-500' : 'border-gray-300'
                       }`}
@@ -452,6 +666,7 @@ const BuyerRegister = () => {
                       name="confirmPassword"
                       value={formData.confirmPassword}
                       onChange={handleChange}
+                      onBlur={handleBlur}
                       className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all ${
                         errors.confirmPassword ? 'border-red-500' : 'border-gray-300'
                       }`}

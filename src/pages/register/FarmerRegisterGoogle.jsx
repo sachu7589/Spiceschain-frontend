@@ -9,6 +9,7 @@ const FarmerRegisterGoogle = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
+  const [isPincodeLoading, setIsPincodeLoading] = useState(false);
   const [googleData, setGoogleData] = useState(null);
   const [formData, setFormData] = useState({
     fullName: '',
@@ -27,6 +28,94 @@ const FarmerRegisterGoogle = () => {
   });
 
   const [errors, setErrors] = useState({});
+
+  // Validation functions
+  const validateName = (name) => {
+    if (!name.trim()) return 'Full name is required';
+    if (name.trim().length < 3) return 'Name must be at least 3 characters long';
+    if (!/^[a-zA-Z\s]+$/.test(name.trim())) return 'Name can only contain alphabets and spaces';
+    if (name.trim().length >= 3) {
+      const chars = name.trim().split('');
+      if (chars.every(char => char === chars[0])) return 'Name cannot have all same characters';
+    }
+    return '';
+  };
+
+  const validateDateOfBirth = (date) => {
+    if (!date) return 'Date of birth is required';
+    const selectedDate = new Date(date);
+    const today = new Date();
+    const minDate = new Date();
+    minDate.setFullYear(today.getFullYear() - 18);
+    
+    if (selectedDate > minDate) {
+      return 'You must be at least 18 years old';
+    }
+    return '';
+  };
+
+  const validatePhoneNumber = (number) => {
+    if (!number.trim()) return 'Phone number is required';
+    if (!/^\d{10}$/.test(number.trim())) return 'Phone number must be exactly 10 digits';
+    
+    const firstDigit = parseInt(number.trim()[0]);
+    if (![6, 7, 8, 9].includes(firstDigit)) {
+      return 'Phone number must start with 6, 7, 8, or 9';
+    }
+    
+    // Check for 5 consecutive same digits
+    const digits = number.trim().split('');
+    for (let i = 0; i <= digits.length - 5; i++) {
+      if (digits.slice(i, i + 5).every(digit => digit === digits[i])) {
+        return 'Phone number cannot have 5 consecutive same digits';
+      }
+    }
+    
+    return '';
+  };
+
+  const fetchAddressFromPincode = async (pincode) => {
+    if (pincode.length === 6 && /^\d{6}$/.test(pincode)) {
+      setIsPincodeLoading(true);
+      try {
+        const response = await fetch(`https://api.postalpincode.in/pincode/${pincode}`);
+        const data = await response.json();
+        
+        if (data[0]?.Status === 'Success' && data[0]?.PostOffice?.length > 0) {
+          const postOffice = data[0].PostOffice[0];
+          setFormData(prev => ({
+            ...prev,
+            district: postOffice.District || '',
+            state: postOffice.State || ''
+          }));
+        } else {
+          // Clear district and state if pincode is invalid
+          setFormData(prev => ({
+            ...prev,
+            district: '',
+            state: ''
+          }));
+        }
+      } catch (error) {
+        console.error('Error fetching address:', error);
+        setFormData(prev => ({
+          ...prev,
+          district: '',
+          state: ''
+        }));
+      } finally {
+        setIsPincodeLoading(false);
+      }
+    }
+  };
+
+  // Calculate max date for date picker (18 years ago)
+  const getMaxDate = () => {
+    const today = new Date();
+    const maxDate = new Date();
+    maxDate.setFullYear(today.getFullYear() - 18);
+    return maxDate.toISOString().split('T')[0];
+  };
 
   useEffect(() => {
     // Get Google data from sessionStorage
@@ -92,6 +181,7 @@ const FarmerRegisterGoogle = () => {
       ...prev,
       [name]: value
     }));
+    
     // Clear error when user starts typing
     if (errors[name]) {
       setErrors(prev => ({
@@ -99,16 +189,31 @@ const FarmerRegisterGoogle = () => {
         [name]: ''
       }));
     }
+
+    // Auto-fetch address when pincode reaches 6 digits
+    if (name === 'pincode' && value.length === 6 && /^\d{6}$/.test(value)) {
+      fetchAddressFromPincode(value);
+    }
   };
 
   const validateForm = () => {
     const newErrors = {};
 
-    if (!formData.fullName.trim()) newErrors.fullName = 'Full name is required';
+    // Use the new validation functions
+    const nameError = validateName(formData.fullName);
+    if (nameError) newErrors.fullName = nameError;
+
     if (!formData.gender) newErrors.gender = 'Gender is required';
-    if (!formData.dateOfBirth) newErrors.dateOfBirth = 'Date of birth is required';
-    if (!formData.contactNumber.trim()) newErrors.contactNumber = 'Contact number is required';
-    if (!formData.whatsappNumber.trim()) newErrors.whatsappNumber = 'WhatsApp number is required';
+    
+    const dobError = validateDateOfBirth(formData.dateOfBirth);
+    if (dobError) newErrors.dateOfBirth = dobError;
+
+    const contactError = validatePhoneNumber(formData.contactNumber);
+    if (contactError) newErrors.contactNumber = contactError;
+
+    const whatsappError = validatePhoneNumber(formData.whatsappNumber);
+    if (whatsappError) newErrors.whatsappNumber = whatsappError;
+
     if (formData.emailAddress && !/\S+@\S+\.\S+/.test(formData.emailAddress)) {
       newErrors.emailAddress = 'Please enter a valid email address';
     }
@@ -213,16 +318,26 @@ const FarmerRegisterGoogle = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Full Name *
                     </label>
-                    <input
-                      type="text"
-                      name="fullName"
-                      value={formData.fullName}
-                      onChange={handleChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
-                        errors.fullName ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Enter your full name"
-                    />
+                                         <input
+                       type="text"
+                       name="fullName"
+                       value={formData.fullName}
+                       onChange={handleChange}
+                       onBlur={(e) => {
+                         const error = validateName(e.target.value);
+                         setErrors(prev => ({ ...prev, fullName: error }));
+                       }}
+                       onKeyUp={(e) => {
+                         const error = validateName(e.target.value);
+                         if (!error) {
+                           setErrors(prev => ({ ...prev, fullName: '' }));
+                         }
+                       }}
+                       className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
+                         errors.fullName ? 'border-red-500' : 'border-gray-300'
+                       }`}
+                       placeholder="Enter your full name"
+                     />
                     {errors.fullName && (
                       <p className="text-red-500 text-sm mt-1">{errors.fullName}</p>
                     )}
@@ -254,15 +369,20 @@ const FarmerRegisterGoogle = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Date of Birth *
                     </label>
-                    <input
-                      type="date"
-                      name="dateOfBirth"
-                      value={formData.dateOfBirth}
-                      onChange={handleChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
-                        errors.dateOfBirth ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                    />
+                                         <input
+                       type="date"
+                       name="dateOfBirth"
+                       value={formData.dateOfBirth}
+                       onChange={handleChange}
+                       onBlur={(e) => {
+                         const error = validateDateOfBirth(e.target.value);
+                         setErrors(prev => ({ ...prev, dateOfBirth: error }));
+                       }}
+                       className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
+                         errors.dateOfBirth ? 'border-red-500' : 'border-gray-300'
+                       }`}
+                       max={getMaxDate()}
+                     />
                     {errors.dateOfBirth && (
                       <p className="text-red-500 text-sm mt-1">{errors.dateOfBirth}</p>
                     )}
@@ -274,16 +394,26 @@ const FarmerRegisterGoogle = () => {
                     </label>
                     <div className="relative">
                       <FaPhone className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                      <input
-                        type="tel"
-                        name="contactNumber"
-                        value={formData.contactNumber}
-                        onChange={handleChange}
-                        className={`w-full pl-10 pr-3 sm:pr-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
-                          errors.contactNumber ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="Enter mobile number"
-                      />
+                                             <input
+                         type="tel"
+                         name="contactNumber"
+                         value={formData.contactNumber}
+                         onChange={handleChange}
+                         onBlur={(e) => {
+                           const error = validatePhoneNumber(e.target.value);
+                           setErrors(prev => ({ ...prev, contactNumber: error }));
+                         }}
+                         onKeyUp={(e) => {
+                           const error = validatePhoneNumber(e.target.value);
+                           if (!error) {
+                             setErrors(prev => ({ ...prev, contactNumber: '' }));
+                           }
+                         }}
+                         className={`w-full pl-10 pr-3 sm:pr-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
+                           errors.contactNumber ? 'border-red-500' : 'border-gray-300'
+                         }`}
+                         placeholder="Enter mobile number"
+                       />
                     </div>
                     {errors.contactNumber && (
                       <p className="text-red-500 text-sm mt-1">{errors.contactNumber}</p>
@@ -296,16 +426,26 @@ const FarmerRegisterGoogle = () => {
                     </label>
                     <div className="relative">
                       <FaWhatsapp className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
-                      <input
-                        type="tel"
-                        name="whatsappNumber"
-                        value={formData.whatsappNumber}
-                        onChange={handleChange}
-                        className={`w-full pl-10 pr-3 sm:pr-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
-                          errors.whatsappNumber ? 'border-red-500' : 'border-gray-300'
-                        }`}
-                        placeholder="Enter WhatsApp number"
-                      />
+                                             <input
+                         type="tel"
+                         name="whatsappNumber"
+                         value={formData.whatsappNumber}
+                         onChange={handleChange}
+                         onBlur={(e) => {
+                           const error = validatePhoneNumber(e.target.value);
+                           setErrors(prev => ({ ...prev, whatsappNumber: error }));
+                         }}
+                         onKeyUp={(e) => {
+                           const error = validatePhoneNumber(e.target.value);
+                           if (!error) {
+                             setErrors(prev => ({ ...prev, whatsappNumber: '' }));
+                           }
+                         }}
+                         className={`w-full pl-10 pr-3 sm:pr-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
+                           errors.whatsappNumber ? 'border-red-500' : 'border-gray-300'
+                         }`}
+                         placeholder="Enter WhatsApp number"
+                       />
                     </div>
                     {errors.whatsappNumber && (
                       <p className="text-red-500 text-sm mt-1">{errors.whatsappNumber}</p>
@@ -323,6 +463,14 @@ const FarmerRegisterGoogle = () => {
                         name="emailAddress"
                         value={formData.emailAddress}
                         onChange={handleChange}
+                        onBlur={() => {
+                          if (formData.emailAddress && !/\S+@\S+\.\S+/.test(formData.emailAddress)) {
+                            setErrors(prev => ({ ...prev, emailAddress: 'Please enter a valid email address' }));
+                          } else {
+                            setErrors(prev => ({ ...prev, emailAddress: '' }));
+                          }
+                        }}
+                        onKeyUp={() => setErrors(prev => ({ ...prev, emailAddress: '' }))}
                         className={`w-full pl-10 pr-3 sm:pr-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
                           errors.emailAddress ? 'border-red-500' : 'border-gray-300'
                         }`}
@@ -352,6 +500,8 @@ const FarmerRegisterGoogle = () => {
                       name="permanentAddress"
                       value={formData.permanentAddress}
                       onChange={handleChange}
+                      onBlur={() => setErrors(prev => ({ ...prev, permanentAddress: !formData.permanentAddress.trim() ? 'Permanent address is required' : '' }))}
+                      onKeyUp={() => setErrors(prev => ({ ...prev, permanentAddress: '' }))}
                       rows="3"
                       className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
                         errors.permanentAddress ? 'border-red-500' : 'border-gray-300'
@@ -388,8 +538,9 @@ const FarmerRegisterGoogle = () => {
                       onChange={handleChange}
                       className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
                         errors.district ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Enter district"
+                      } ${isPincodeLoading ? 'bg-gray-50' : ''}`}
+                      placeholder={isPincodeLoading ? "Loading..." : "Auto-filled from pincode"}
+                      readOnly
                     />
                     {errors.district && (
                       <p className="text-red-500 text-sm mt-1">{errors.district}</p>
@@ -407,8 +558,9 @@ const FarmerRegisterGoogle = () => {
                       onChange={handleChange}
                       className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
                         errors.state ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Enter state"
+                      } ${isPincodeLoading ? 'bg-gray-50' : ''}`}
+                      placeholder={isPincodeLoading ? "Loading..." : "Auto-filled from pincode"}
+                      readOnly
                     />
                     {errors.state && (
                       <p className="text-red-500 text-sm mt-1">{errors.state}</p>
@@ -419,16 +571,24 @@ const FarmerRegisterGoogle = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-2">
                       Pincode *
                     </label>
-                    <input
-                      type="text"
-                      name="pincode"
-                      value={formData.pincode}
-                      onChange={handleChange}
-                      className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
-                        errors.pincode ? 'border-red-500' : 'border-gray-300'
-                      }`}
-                      placeholder="Enter pincode"
-                    />
+                                         <div className="relative">
+                       <input
+                         type="text"
+                         name="pincode"
+                         value={formData.pincode}
+                         onChange={handleChange}
+                         className={`w-full px-3 sm:px-4 py-2 sm:py-3 border rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent transition-all ${
+                           errors.pincode ? 'border-red-500' : 'border-gray-300'
+                         }`}
+                         placeholder="Enter pincode"
+                         maxLength="6"
+                       />
+                       {isPincodeLoading && (
+                         <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
+                           <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-green-500"></div>
+                         </div>
+                       )}
+                     </div>
                     {errors.pincode && (
                       <p className="text-red-500 text-sm mt-1">{errors.pincode}</p>
                     )}
