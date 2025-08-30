@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { authAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
@@ -7,6 +7,7 @@ import GoogleAuthLogin from '../components/GoogleAuthLogin';
 
 const Login = () => {
   const { login } = useAuth();
+  const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     emailOrPhone: '',
@@ -191,6 +192,9 @@ const Login = () => {
         setTimeout(() => {
           // Use the auth context to login
           login(response.data.token, response.data.user);
+          
+          // Redirect to dashboard - DynamicDashboard will handle routing to correct dashboard
+          navigate('/dashboard');
         }, 1000);
       } catch (error) {
         console.error('Login error:', error);

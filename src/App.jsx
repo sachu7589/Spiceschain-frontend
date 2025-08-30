@@ -6,7 +6,7 @@ import FarmerRegister from './pages/register/FarmerRegister'
 import BuyerRegister from './pages/register/BuyerRegister'
 import FarmerRegisterGoogle from './pages/register/FarmerRegisterGoogle'
 import BuyerRegisterGoogle from './pages/register/BuyerRegisterGoogle'
-import Dashboard from './pages/Dashboard'
+import DynamicDashboard from './components/DynamicDashboard'
 import ProtectedRoute from './components/ProtectedRoute'
 import AuthRedirect from './components/AuthRedirect'
 
@@ -43,7 +43,7 @@ function App() {
           } />
           <Route path="/dashboard" element={
             <ProtectedRoute>
-              <Dashboard />
+              <DynamicDashboard />
             </ProtectedRoute>
           } />
         </Routes>
