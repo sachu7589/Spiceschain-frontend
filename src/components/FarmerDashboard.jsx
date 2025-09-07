@@ -1,0 +1,596 @@
+import React, { useState } from 'react';
+import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
+
+const FarmerDashboard = () => {
+  const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [activeMenu, setActiveMenu] = useState('dashboard');
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const toggleSidebar = () => {
+    setSidebarCollapsed(!sidebarCollapsed);
+  };
+
+  const handleMenuClick = (menu) => {
+    setActiveMenu(menu);
+  };
+
+  const renderDashboardContent = () => {
+    return <FarmerDashboardOverview user={user} navigate={navigate} />;
+  };
+
+  const menuItems = [
+    { id: 'dashboard', label: 'Dashboard', icon: 'grid', active: true },
+  ];
+
+  const getIcon = (iconName) => {
+    const icons = {
+      grid: (
+        <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        </svg>
+      ),
+      logout: (
+        <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+      ),
+    };
+    return icons[iconName] || icons.grid;
+  };
+
+  return (
+    <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Sidebar */}
+      <div className={`bg-white/80 backdrop-blur-xl shadow-2xl border-r border-white/20 transition-all duration-300 ease-in-out ${
+        sidebarCollapsed ? 'w-20' : 'w-72'
+      }`}>
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-white/20">
+          {!sidebarCollapsed && (
+            <div className="flex items-center space-x-3">
+              <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 rounded-xl flex items-center justify-center shadow-lg">
+                <svg className="w-6 h-6 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+              </div>
+              <div>
+                <span className="text-xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent">
+                  SpicesChain
+                </span>
+                <p className="text-xs text-gray-500 -mt-1">Trading Platform</p>
+              </div>
+            </div>
+          )}
+          <button
+            onClick={toggleSidebar}
+            className="p-2 rounded-xl hover:bg-white/60 hover:shadow-md transition-all duration-200 group"
+          >
+            <svg className={`w-5 h-5 transition-colors duration-200 ${
+              sidebarCollapsed ? 'text-emerald-600' : 'text-gray-600'
+            } group-hover:text-emerald-700`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Navigation Menu */}
+        <nav className={`${sidebarCollapsed ? 'p-4' : 'p-6'} space-y-2`}>
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => item.action ? item.action() : handleMenuClick(item.id)}
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-4'} ${sidebarCollapsed ? 'px-2 py-3' : 'px-4 py-3'} rounded-xl transition-all duration-200 group ${
+                activeMenu === item.id
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-sm'
+                  : 'text-gray-600 hover:bg-white/80 hover:text-gray-900 hover:shadow-md'
+              }`}
+            >
+              <span className={`flex-shrink-0 ${sidebarCollapsed ? 'p-2' : 'p-2'} rounded-lg transition-all duration-200 ${
+                activeMenu === item.id
+                  ? 'bg-emerald-100 text-emerald-700 shadow-sm'
+                  : 'bg-gray-100 group-hover:bg-emerald-50 group-hover:shadow-sm'
+              }`}>
+                {getIcon(item.icon)}
+              </span>
+              {!sidebarCollapsed && (
+                <span className="text-sm font-medium">{item.label}</span>
+              )}
+            </button>
+          ))}
+        </nav>
+
+        {/* User Profile and Logout */}
+        <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-white/20 bg-white/40 backdrop-blur-sm space-y-4">
+          {/* Logout Button */}
+          <button
+            onClick={logout}
+            className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-4'} ${sidebarCollapsed ? 'px-2 py-3' : 'px-4 py-3'} rounded-xl transition-all duration-200 group text-red-600 hover:bg-red-50 hover:text-red-700 hover:shadow-md`}
+          >
+            <span className={`flex-shrink-0 ${sidebarCollapsed ? 'p-2' : 'p-2'} rounded-lg transition-all duration-200 bg-red-100 group-hover:bg-red-200`}>
+              {getIcon('logout')}
+            </span>
+            {!sidebarCollapsed && (
+              <span className="text-sm font-medium">Logout</span>
+            )}
+          </button>
+
+          {/* Separator Line */}
+          <div className="border-t border-white/30"></div>
+
+          {/* User Profile */}
+          <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-4'}`}>
+            <div className="relative">
+              <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-lg">
+                {(user.fullName || user.name) ? (user.fullName || user.name).charAt(0).toUpperCase() : ''}
+              </div>
+              {/* Verification Status Indicator */}
+              <div className={`absolute -bottom-1 -right-1 w-4 h-4 border-2 border-white rounded-full flex items-center justify-center ${
+                user.isVerified ? 'bg-green-500' : 'bg-orange-500'
+              }`}>
+                {user.isVerified ? (
+                  <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
+            </div>
+            {!sidebarCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-gray-900 truncate">
+                  {user.fullName || user.name}
+                </p>
+                <p className="text-xs text-gray-600 truncate">
+                  {user.email || user.contactNumber}
+                </p>
+                <div className="flex items-center mt-1 space-x-2">
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                    {user.userType}
+                  </span>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    user.isVerified 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-orange-100 text-orange-800'
+                  }`}>
+                    {user.isVerified ? 'Verified' : 'Unverified'}
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Bar */}
+        <header className="bg-white/80 backdrop-blur-xl shadow-sm border-b border-white/20 px-8 py-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent capitalize">
+                {activeMenu === 'dashboard' ? 'Dashboard' : activeMenu}
+              </h1>
+              <p className="text-sm text-gray-600 mt-1">
+                Welcome back, <span className="font-semibold text-gray-900">{user.fullName || user.name}</span>! 👋
+              </p>
+            </div>
+            <div className="flex items-center space-x-6">
+              {/* Notifications */}
+              <button className="relative p-3 text-gray-400 hover:text-gray-600 transition-all duration-200 hover:bg-white/60 rounded-xl">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-5 5v-5zM10.5 3.75a6 6 0 00-6 6v3.75l-.75.75V19.5h13.5v-1.5l-.75-.75V9.75a6 6 0 00-6-6z" />
+                </svg>
+                <span className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+              </button>
+              
+              {/* User Menu */}
+              <div className="flex items-center space-x-4 p-3 bg-white/60 rounded-xl border border-white/30">
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-gray-900">{user.fullName || user.name}</p>
+                  <div className="flex items-center space-x-2">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                      user.isVerified 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-orange-100 text-orange-800'
+                    }`}>
+                      {user.isVerified ? 'Verified' : 'Unverified'}
+                    </span>
+                  </div>
+                </div>
+                <div className="relative">
+                  <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-lg">
+                    {(user.fullName || user.name) ? (user.fullName || user.name).charAt(0).toUpperCase() : ''}
+                  </div>
+                  {/* Verification Status Indicator */}
+                  <div className={`absolute -bottom-1 -right-1 w-3 h-3 border-2 border-white rounded-full flex items-center justify-center ${
+                    user.isVerified ? 'bg-green-500' : 'bg-orange-500'
+                  }`}>
+                    {user.isVerified ? (
+                      <svg className="w-1.5 h-1.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg className="w-1.5 h-1.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        {/* Page Content */}
+        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gradient-to-br from-gray-50 to-gray-100 p-8">
+          {renderDashboardContent()}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+// Farmer Dashboard Content Components
+const FarmerDashboardOverview = ({ user, navigate }) => {
+  const isVerified = user?.isVerified || false;
+
+  // Farmer-specific data
+  const dailyPrices = [
+    { day: 'Mon', price: 3100 },
+    { day: 'Tue', price: 3150 },
+    { day: 'Wed', price: 3080 },
+    { day: 'Thu', price: 3200 },
+    { day: 'Fri', price: 3250 },
+    { day: 'Sat', price: 3180 },
+    { day: 'Sun', price: 3200 },
+  ];
+
+  const ongoingAuctions = [
+    { id: 'A001', spice: 'Cardamom (Green)', quantity: '50kg', currentBid: '₹3,200', timeLeft: '2h 15m', bidders: 8 },
+    { id: 'A002', spice: 'Black Pepper', quantity: '100kg', currentBid: '₹450', timeLeft: '4h 30m', bidders: 12 },
+    { id: 'A003', spice: 'Cinnamon', quantity: '75kg', currentBid: '₹280', timeLeft: '1h 45m', bidders: 5 },
+  ];
+
+  const notifications = [
+    { id: 1, type: 'auction', title: 'Auction A001 ending soon', message: 'Your cardamom auction has 2 hours left', time: '2m ago', unread: true },
+    { id: 2, type: 'payment', title: 'Payment received', message: '₹15,600 received for Black Pepper sale', time: '1h ago', unread: true },
+    { id: 3, type: 'auction', title: 'New bid on your auction', message: 'A002 received a bid of ₹450/kg', time: '3h ago', unread: false },
+    { id: 4, type: 'weather', title: 'Weather alert', message: 'Heavy rain expected in your area', time: '5h ago', unread: false },
+  ];
+
+  const weatherData = {
+    location: 'Kerala, India',
+    temperature: '28°C',
+    condition: 'Partly Cloudy',
+    humidity: '78%',
+    windSpeed: '12 km/h',
+    forecast: 'Heavy rain expected in 2 days'
+  };
+
+  return (
+    <div className="space-y-8">
+      {/* Cardamom Price Overview - Kerala Only */}
+      <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+        <div className="flex items-center justify-between mb-6">
+          <h3 className="text-xl font-bold text-gray-900">Today's Cardamom Price - Kerala</h3>
+          <span className="text-sm text-gray-500">Updated 2 minutes ago</span>
+        </div>
+        
+        {/* Current Price */}
+        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium text-gray-600">Kerala</p>
+              <p className="text-3xl font-bold text-gray-900">₹3,200</p>
+            </div>
+            <div className="flex items-center space-x-1 text-green-600">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 17l9.2-9.2M17 17V7H7" />
+              </svg>
+              <span className="text-lg font-semibold">+5.2%</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Daily Price Chart */}
+        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+          <h4 className="text-lg font-semibold text-gray-900 mb-4">7-Day Price Trend</h4>
+          <div className="h-80 relative">
+            <svg className="w-full h-full" viewBox="0 0 500 200" preserveAspectRatio="none">
+              {/* Chart area */}
+              <defs>
+                <linearGradient id="priceGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.1"/>
+                  <stop offset="100%" stopColor="#10b981" stopOpacity="0.05"/>
+                </linearGradient>
+              </defs>
+              
+              {/* Grid lines */}
+              <g stroke="#e5e7eb" strokeWidth="1" opacity="0.5">
+                {/* Horizontal grid lines */}
+                <line x1="50" y1="30" x2="450" y2="30"/>
+                <line x1="50" y1="80" x2="450" y2="80"/>
+                <line x1="50" y1="130" x2="450" y2="130"/>
+                <line x1="50" y1="180" x2="450" y2="180"/>
+                
+                {/* Vertical grid lines */}
+                {dailyPrices.map((_, index) => {
+                  const x = 50 + (index * 400) / (dailyPrices.length - 1);
+                  return <line key={index} x1={x} y1="30" x2={x} y2="180"/>;
+                })}
+              </g>
+              
+              {/* Y-axis */}
+              <line x1="50" y1="30" x2="50" y2="180" stroke="#374151" strokeWidth="2"/>
+              
+              {/* X-axis */}
+              <line x1="50" y1="180" x2="450" y2="180" stroke="#374151" strokeWidth="2"/>
+              
+              {/* Price area fill */}
+              <polygon
+                fill="url(#priceGradient)"
+                points={[
+                  `50,180`,
+                  ...dailyPrices.map((data, index) => {
+                    const maxPrice = Math.max(...dailyPrices.map(d => d.price));
+                    const minPrice = Math.min(...dailyPrices.map(d => d.price));
+                    const priceRange = maxPrice - minPrice;
+                    const x = 50 + (index * 400) / (dailyPrices.length - 1);
+                    const y = 180 - ((data.price - minPrice) / priceRange) * 150;
+                    return `${x},${y}`;
+                  }),
+                  `450,180`
+                ].join(' ')}
+              />
+              
+              {/* Price line */}
+              <polyline
+                fill="none"
+                stroke="#10b981"
+                strokeWidth="3"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                points={dailyPrices.map((data, index) => {
+                  const maxPrice = Math.max(...dailyPrices.map(d => d.price));
+                  const minPrice = Math.min(...dailyPrices.map(d => d.price));
+                  const priceRange = maxPrice - minPrice;
+                  const x = 50 + (index * 400) / (dailyPrices.length - 1);
+                  const y = 180 - ((data.price - minPrice) / priceRange) * 150;
+                  return `${x},${y}`;
+                }).join(' ')}
+              />
+              
+              {/* Data points */}
+              {dailyPrices.map((data, index) => {
+                const maxPrice = Math.max(...dailyPrices.map(d => d.price));
+                const minPrice = Math.min(...dailyPrices.map(d => d.price));
+                const priceRange = maxPrice - minPrice;
+                const x = 50 + (index * 400) / (dailyPrices.length - 1);
+                const y = 180 - ((data.price - minPrice) / priceRange) * 150;
+                return (
+                  <g key={index}>
+                    <circle
+                      cx={x}
+                      cy={y}
+                      r="5"
+                      fill="#10b981"
+                      stroke="#ffffff"
+                      strokeWidth="2"
+                    />
+                    <text
+                      x={x}
+                      y={y - 15}
+                      textAnchor="middle"
+                      className="text-xs fill-gray-700 font-semibold"
+                    >
+                      ₹{data.price}
+                    </text>
+                  </g>
+                );
+              })}
+              
+              {/* Y-axis labels */}
+              <text x="45" y="35" textAnchor="end" className="text-xs fill-gray-600 font-medium">₹3,250</text>
+              <text x="45" y="85" textAnchor="end" className="text-xs fill-gray-600 font-medium">₹3,165</text>
+              <text x="45" y="135" textAnchor="end" className="text-xs fill-gray-600 font-medium">₹3,100</text>
+              <text x="45" y="185" textAnchor="end" className="text-xs fill-gray-600 font-medium">₹3,080</text>
+              
+              {/* X-axis labels */}
+              {dailyPrices.map((data, index) => {
+                const x = 50 + (index * 400) / (dailyPrices.length - 1);
+                return (
+                  <text
+                    key={index}
+                    x={x}
+                    y="195"
+                    textAnchor="middle"
+                    className="text-xs fill-gray-600 font-medium"
+                  >
+                    {data.day}
+                  </text>
+                );
+              })}
+            </svg>
+          </div>
+        </div>
+      </div>
+
+      {/* Blurred Sections Container with Verify Button Overlay */}
+      <div className="relative">
+        {/* Main Content Grid - Blurred if not verified */}
+        <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${!isVerified ? 'blur-sm pointer-events-none' : ''}`}>
+          {/* Ongoing Auctions Summary */}
+          <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Ongoing Auctions Summary</h3>
+              <button className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                View All
+              </button>
+            </div>
+            <div className="space-y-4">
+              {ongoingAuctions.map((auction) => (
+                <div key={auction.id} className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <span className="font-semibold text-gray-900">{auction.spice}</span>
+                        <span className="text-sm text-gray-600">({auction.quantity})</span>
+                      </div>
+                      <div className="flex items-center space-x-4 text-sm text-gray-600">
+                        <span>Current: <span className="font-semibold text-gray-900">{auction.currentBid}/kg</span></span>
+                        <span>•</span>
+                        <span>{auction.bidders} bidders</span>
+                        <span>•</span>
+                        <span className="text-orange-600 font-medium">{auction.timeLeft} left</span>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-xs text-gray-500">Auction ID</span>
+                      <p className="text-sm font-mono text-gray-700">{auction.id}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Notifications */}
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Notifications</h3>
+              <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                {notifications.filter(n => n.unread).length} new
+              </span>
+            </div>
+            <div className="space-y-3">
+              {notifications.map((notification) => (
+                <div key={notification.id} className={`p-3 rounded-lg border ${
+                  notification.unread 
+                    ? 'bg-blue-50 border-blue-200' 
+                    : 'bg-gray-50 border-gray-200'
+                }`}>
+                  <div className="flex items-start space-x-3">
+                    <div className={`w-2 h-2 rounded-full mt-2 ${
+                      notification.type === 'auction' ? 'bg-orange-500' :
+                      notification.type === 'payment' ? 'bg-green-500' :
+                      'bg-blue-500'
+                    }`}></div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
+                      <p className="text-xs text-gray-600 mt-1">{notification.message}</p>
+                      <p className="text-xs text-gray-400 mt-1">{notification.time}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Weather Updates and Quick Links - Blurred if not verified */}
+        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8 ${!isVerified ? 'blur-sm pointer-events-none' : ''}`}>
+          {/* Weather Updates */}
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Weather Updates</h3>
+            <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <p className="text-sm text-gray-600">Farm Location</p>
+                  <p className="font-semibold text-gray-900">{weatherData.location}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-3xl font-bold text-gray-900">{weatherData.temperature}</p>
+                  <p className="text-sm text-gray-600">{weatherData.condition}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4 mb-4">
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">Humidity</p>
+                  <p className="font-semibold text-gray-900">{weatherData.humidity}</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-sm text-gray-600">Wind Speed</p>
+                  <p className="font-semibold text-gray-900">{weatherData.windSpeed}</p>
+                </div>
+              </div>
+              <div className="bg-yellow-100 border border-yellow-200 rounded-lg p-3">
+                <p className="text-sm text-yellow-800">
+                  <span className="font-semibold">Forecast:</span> {weatherData.forecast}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Quick Links */}
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+            <h3 className="text-xl font-bold text-gray-900 mb-6">Quick Links</h3>
+            <div className="space-y-4">
+              <button className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white p-4 rounded-xl flex items-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                </svg>
+                <span className="font-semibold">Add Inventory</span>
+              </button>
+              <button className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white p-4 rounded-xl flex items-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="font-semibold">Start Auction</span>
+              </button>
+              <button className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white p-4 rounded-xl flex items-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <span className="font-semibold">View Analytics</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Verify Button Overlay - Centered in middle of blurred sections */}
+        {!isVerified && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-white/30 pointer-events-auto">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Account Verification Required</h3>
+                <p className="text-gray-600 mb-6">Please verify your account to access all dashboard features</p>
+                <button 
+                  onClick={() => navigate('/farmer/verification')}
+                  className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-6 py-3 rounded-xl font-semibold flex items-center space-x-2 mx-auto transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                  </svg>
+                  <span>Verify Account</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default FarmerDashboard;

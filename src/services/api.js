@@ -5,7 +5,7 @@ console.log('VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
 
 // Create axios instance with base configuration
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000',
   headers: {
     'Content-Type': 'application/json',
   },
@@ -69,6 +69,98 @@ export const authAPI = {
   googleLogin: async (googleData) => {
     const response = await api.post('/api/auth/google/login', googleData);
     return response.data;
+  },
+};
+
+// Create separate axios instance for Aadhaar API
+const aadhaarApi = axios.create({
+  baseURL: 'http://localhost:5000',
+  timeout: 30000, // 30 second timeout for file uploads
+});
+
+// Aadhaar Verification API functions
+export const aadhaarAPI = {
+  // Health check
+  healthCheck: async () => {
+    console.log('Aadhaar API Health Check URL:', aadhaarApi.defaults.baseURL + '/health');
+    const response = await aadhaarApi.get('/health');
+    return response.data;
+  },
+
+  // Extract Aadhaar data from 2-page PDF
+  extractAadhaar: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    console.log('Aadhaar API Extract URL:', aadhaarApi.defaults.baseURL + '/extract-aadhaar');
+    const response = await aadhaarApi.post('/extract-aadhaar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Extract Aadhaar data from single page PDF
+  extractSingle: async (file) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    console.log('Aadhaar API Single Extract URL:', aadhaarApi.defaults.baseURL + '/extract-single');
+    const response = await aadhaarApi.post('/extract-single', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Send OTP for verification (using main API on port 3000)
+  sendOTP: async (emailData) => {
+    console.log('Main API Send OTP URL:', api.defaults.baseURL + '/api/verification/send-otp');
+    console.log('Send OTP payload:', emailData);
+    try {
+      const response = await api.post('/api/verification/send-otp', emailData);
+      console.log('Send OTP response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Send OTP API error:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      throw error;
+    }
+  },
+
+  // Verify OTP (using main API on port 3000)
+  verifyOTP: async (otpData) => {
+    console.log('Main API Verify OTP URL:', api.defaults.baseURL + '/api/verification/verify-otp');
+    console.log('Verify OTP payload:', otpData);
+    try {
+      const response = await api.post('/api/verification/verify-otp', otpData);
+      console.log('Verify OTP response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Verify OTP API error:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      throw error;
+    }
+  },
+
+  // Store Aadhaar data in database (using main API on port 3000)
+  storeAadhaarData: async (aadhaarData) => {
+    console.log('Main API Store Aadhaar URL:', api.defaults.baseURL + '/api/verification/store-aadhaar');
+    console.log('Store Aadhaar payload:', aadhaarData);
+    try {
+      const response = await api.post('/api/verification/store-aadhaar', aadhaarData);
+      console.log('Store Aadhaar response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Store Aadhaar API error:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      throw error;
+    }
   },
 };
 

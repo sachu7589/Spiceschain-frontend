@@ -55,12 +55,65 @@ export const AuthProvider = ({ children }) => {
     navigate('/');
   };
 
+  const refreshUserData = async () => {
+    const token = localStorage.getItem('token');
+    console.log('🔄 Refreshing user data...');
+    console.log('🔑 Token exists:', !!token);
+    
+    if (!token) {
+      console.log('❌ No token found, skipping refresh');
+      return;
+    }
+
+    try {
+      console.log('📡 Fetching user data from: http://localhost:3000/api/auth/me');
+      const response = await fetch('http://localhost:3000/api/auth/me', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      console.log('📊 Response status:', response.status);
+      console.log('📊 Response ok:', response.ok);
+
+      if (response.ok) {
+        const userData = await response.json();
+        console.log('✅ Fresh user data from backend:', userData);
+        console.log('🔍 isVerified from backend:', userData.isVerified);
+        console.log('🔍 typeof isVerified:', typeof userData.isVerified);
+        
+        setUser(userData);
+        localStorage.setItem('userData', JSON.stringify(userData));
+        console.log('💾 Updated localStorage with fresh data');
+        return userData;
+      } else {
+        const errorText = await response.text();
+        console.error('❌ Failed to refresh user data. Status:', response.status);
+        console.error('❌ Error response:', errorText);
+        return null;
+      }
+    } catch (error) {
+      console.error('❌ Error refreshing user data:', error);
+      return null;
+    }
+  };
+
+  const updateUserData = (updatedData) => {
+    console.log('🔄 Updating user data directly:', updatedData);
+    setUser(updatedData);
+    localStorage.setItem('userData', JSON.stringify(updatedData));
+    console.log('💾 Updated user data in state and localStorage');
+  };
+
   const value = {
     isAuthenticated,
     user,
     loading,
     login,
-    logout
+    logout,
+    refreshUserData,
+    updateUserData
   };
 
   return (

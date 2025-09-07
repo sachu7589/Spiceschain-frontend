@@ -1,9 +1,18 @@
-import React from 'react';
-import { FaLeaf, FaBuilding, FaSignOutAlt, FaUser, FaPlus, FaBox, FaChartLine, FaUsers } from 'react-icons/fa';
+import React, { useEffect } from 'react';
+import { FaLeaf, FaBuilding, FaSignOutAlt, FaUser, FaPlus, FaBox, FaChartLine, FaUsers, FaShieldAlt } from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const FarmerDashboard = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+
+  // Debug: Log user object to see verification status
+  console.log('🏠 Farmer Dashboard - User object:', user);
+  console.log('🏠 Farmer Dashboard - isVerified:', user?.isVerified);
+  console.log('🏠 Farmer Dashboard - typeof isVerified:', typeof user?.isVerified);
+  console.log('🏠 Farmer Dashboard - isVerified === true:', user?.isVerified === true);
+  console.log('🏠 Farmer Dashboard - isVerified !== true:', user?.isVerified !== true);
 
   if (!user) {
     return (
@@ -79,6 +88,37 @@ const FarmerDashboard = () => {
               <span className="font-medium">Customers</span>
             </button>
           </div>
+
+          {/* Verify Account Button - Only show if not verified */}
+          {(() => {
+            const shouldShow = user.isVerified !== true;
+            console.log('🔍 Verification section check:');
+            console.log('🔍 user.isVerified:', user.isVerified);
+            console.log('🔍 user.isVerified !== true:', shouldShow);
+            console.log('🔍 Should show verification section:', shouldShow);
+            return shouldShow;
+          })() && (
+            <div className="mb-8">
+              <div className="bg-gradient-to-r from-orange-500 to-red-500 rounded-lg p-6 text-white">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center space-x-4">
+                    <FaShieldAlt className="text-3xl" />
+                    <div>
+                      <h3 className="text-xl font-bold">Account Verification Required</h3>
+                      <p className="text-orange-100">Complete verification to access all features</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => navigate('/farmer/verification')}
+                    className="bg-white text-orange-600 hover:bg-orange-50 px-6 py-3 rounded-lg font-semibold transition-colors flex items-center space-x-2"
+                  >
+                    <FaShieldAlt />
+                    <span>Verify Account</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

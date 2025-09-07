@@ -1,8 +1,10 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import { useNavigate } from 'react-router-dom';
 
 const DynamicDashboard = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeMenu, setActiveMenu] = useState('dashboard');
 
@@ -26,80 +28,25 @@ const DynamicDashboard = () => {
   };
 
   const renderDashboardContent = () => {
-    switch (activeMenu) {
-      case 'dashboard':
-        return <DashboardOverview user={user} />;
-      case 'products':
-        return <ProductsSection user={user} />;
-      case 'orders':
-        return <OrdersSection user={user} />;
-      case 'analytics':
-        return <AnalyticsSection user={user} />;
-      case 'reports':
-        return <ReportsSection user={user} />;
-      case 'users':
-        return <UsersSection user={user} />;
-      case 'settings':
-        return <SettingsSection user={user} />;
-      default:
-        return <DashboardOverview user={user} />;
-    }
+    return <DashboardOverview user={user} navigate={navigate} />;
   };
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', active: true },
-    { id: 'products', label: 'Products', icon: 'package' },
-    { id: 'orders', label: 'Orders', icon: 'shopping-cart' },
-    { id: 'analytics', label: 'Analytics', icon: 'bar-chart' },
-    { id: 'reports', label: 'Reports', icon: 'file-text' },
-    { id: 'users', label: 'Users', icon: 'users' },
-    { id: 'settings', label: 'Settings', icon: 'settings' },
-    { id: 'logout', label: 'Logout', icon: 'logout', action: logout },
   ];
 
   const getIcon = (iconName) => {
     const icons = {
-             grid: (
-         <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
-         </svg>
-       ),
-             package: (
-         <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-         </svg>
-       ),
-       'shopping-cart': (
-         <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5M7 13l2.5 5m6-5v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m8 0V9a2 2 0 00-2-2H9a2 2 0 00-2 2v4.01" />
-         </svg>
-       ),
-       'bar-chart': (
-         <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-         </svg>
-       ),
-       'file-text': (
-         <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-         </svg>
-       ),
-       users: (
-         <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-         </svg>
-       ),
-       settings: (
-         <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-         </svg>
-       ),
-             logout: (
-         <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-         </svg>
-       ),
+      grid: (
+        <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        </svg>
+      ),
+      logout: (
+        <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+        </svg>
+      ),
     };
     return icons[iconName] || icons.grid;
   };
@@ -141,56 +88,89 @@ const DynamicDashboard = () => {
 
 
 
-                 {/* Navigation Menu */}
-         <nav className={`${sidebarCollapsed ? 'p-4' : 'p-6'} space-y-2`}>
-           {menuItems.map((item) => (
-             <button
-               key={item.id}
-               onClick={() => item.action ? item.action() : handleMenuClick(item.id)}
-               className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-4'} ${sidebarCollapsed ? 'px-2 py-3' : 'px-4 py-3'} rounded-xl transition-all duration-200 group ${
-                 item.id === 'logout' 
-                   ? 'text-red-600 hover:bg-red-50 hover:text-red-700 hover:shadow-md'
-                   : activeMenu === item.id
-                   ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-sm'
-                   : 'text-gray-600 hover:bg-white/80 hover:text-gray-900 hover:shadow-md'
-               }`}
-             >
-               <span className={`flex-shrink-0 ${sidebarCollapsed ? 'p-2' : 'p-2'} rounded-lg transition-all duration-200 ${
-                 item.id === 'logout' 
-                   ? 'bg-red-100 group-hover:bg-red-200'
-                   : activeMenu === item.id
-                   ? 'bg-emerald-100 text-emerald-700 shadow-sm'
-                   : 'bg-gray-100 group-hover:bg-emerald-50 group-hover:shadow-sm'
-               }`}>
-                 {getIcon(item.icon)}
-               </span>
-               {!sidebarCollapsed && (
-                 <span className="text-sm font-medium">{item.label}</span>
-               )}
-             </button>
-           ))}
-         </nav>
+        {/* Navigation Menu */}
+        <nav className={`${sidebarCollapsed ? 'p-4' : 'p-6'} space-y-2`}>
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => item.action ? item.action() : handleMenuClick(item.id)}
+              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-4'} ${sidebarCollapsed ? 'px-2 py-3' : 'px-4 py-3'} rounded-xl transition-all duration-200 group ${
+                activeMenu === item.id
+                  ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-sm'
+                  : 'text-gray-600 hover:bg-white/80 hover:text-gray-900 hover:shadow-md'
+              }`}
+            >
+              <span className={`flex-shrink-0 ${sidebarCollapsed ? 'p-2' : 'p-2'} rounded-lg transition-all duration-200 ${
+                activeMenu === item.id
+                  ? 'bg-emerald-100 text-emerald-700 shadow-sm'
+                  : 'bg-gray-100 group-hover:bg-emerald-50 group-hover:shadow-sm'
+              }`}>
+                {getIcon(item.icon)}
+              </span>
+              {!sidebarCollapsed && (
+                <span className="text-sm font-medium">{item.label}</span>
+              )}
+            </button>
+          ))}
+        </nav>
 
-        {/* User Profile */}
-        <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-white/20 bg-white/40 backdrop-blur-sm">
+        {/* User Profile and Logout */}
+        <div className="absolute bottom-0 left-0 right-0 p-6 border-t border-white/20 bg-white/40 backdrop-blur-sm space-y-4">
+          {/* Logout Button */}
+          <button
+            onClick={logout}
+            className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-4'} ${sidebarCollapsed ? 'px-2 py-3' : 'px-4 py-3'} rounded-xl transition-all duration-200 group text-red-600 hover:bg-red-50 hover:text-red-700 hover:shadow-md`}
+          >
+            <span className={`flex-shrink-0 ${sidebarCollapsed ? 'p-2' : 'p-2'} rounded-lg transition-all duration-200 bg-red-100 group-hover:bg-red-200`}>
+              {getIcon('logout')}
+            </span>
+            {!sidebarCollapsed && (
+              <span className="text-sm font-medium">Logout</span>
+            )}
+          </button>
+
+          {/* Separator Line */}
+          <div className="border-t border-white/30"></div>
+
+          {/* User Profile */}
           <div className={`flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-4'}`}>
             <div className="relative">
-                             <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-lg">
-                 {(user.fullName || user.name) ? (user.fullName || user.name).charAt(0).toUpperCase() : ''}
-               </div>
-              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-green-500 border-2 border-white rounded-full"></div>
+              <div className="w-12 h-12 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-lg">
+                {(user.fullName || user.name) ? (user.fullName || user.name).charAt(0).toUpperCase() : ''}
+              </div>
+              {/* Verification Status Indicator */}
+              <div className={`absolute -bottom-1 -right-1 w-4 h-4 border-2 border-white rounded-full flex items-center justify-center ${
+                user.isVerified ? 'bg-green-500' : 'bg-orange-500'
+              }`}>
+                {user.isVerified ? (
+                  <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                ) : (
+                  <svg className="w-2 h-2 text-white" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                  </svg>
+                )}
+              </div>
             </div>
             {!sidebarCollapsed && (
               <div className="flex-1 min-w-0">
-                                 <p className="text-sm font-semibold text-gray-900 truncate">
-                   {user.fullName || user.name}
-                 </p>
-                 <p className="text-xs text-gray-600 truncate">
-                   {user.email || user.contactNumber}
-                 </p>
-                <div className="flex items-center mt-1">
+                <p className="text-sm font-semibold text-gray-900 truncate">
+                  {user.fullName || user.name}
+                </p>
+                <p className="text-xs text-gray-600 truncate">
+                  {user.email || user.contactNumber}
+                </p>
+                <div className="flex items-center mt-1 space-x-2">
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
                     {user.userType}
+                  </span>
+                  <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                    user.isVerified 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-orange-100 text-orange-800'
+                  }`}>
+                    {user.isVerified ? 'Verified' : 'Unverified'}
                   </span>
                 </div>
               </div>
@@ -225,10 +205,34 @@ const DynamicDashboard = () => {
               <div className="flex items-center space-x-4 p-3 bg-white/60 rounded-xl border border-white/30">
                 <div className="text-right">
                   <p className="text-sm font-semibold text-gray-900">{user.fullName || user.name}</p>
-                  <p className="text-xs text-gray-600 capitalize">{user.userType}</p>
+                  <div className="flex items-center space-x-2">
+                    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                      user.isVerified 
+                        ? 'bg-green-100 text-green-800' 
+                        : 'bg-orange-100 text-orange-800'
+                    }`}>
+                      {user.isVerified ? 'Verified' : 'Unverified'}
+                    </span>
+                  </div>
                 </div>
-                <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-lg">
-                  {(user.fullName || user.name) ? (user.fullName || user.name).charAt(0).toUpperCase() : ''}
+                <div className="relative">
+                  <div className="w-10 h-10 bg-gradient-to-r from-emerald-500 to-teal-500 rounded-xl flex items-center justify-center text-white text-lg font-bold shadow-lg">
+                    {(user.fullName || user.name) ? (user.fullName || user.name).charAt(0).toUpperCase() : ''}
+                  </div>
+                  {/* Verification Status Indicator */}
+                  <div className={`absolute -bottom-1 -right-1 w-3 h-3 border-2 border-white rounded-full flex items-center justify-center ${
+                    user.isVerified ? 'bg-green-500' : 'bg-orange-500'
+                  }`}>
+                    {user.isVerified ? (
+                      <svg className="w-1.5 h-1.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    ) : (
+                      <svg className="w-1.5 h-1.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -245,198 +249,477 @@ const DynamicDashboard = () => {
 };
 
 // Dashboard Content Components
-const DashboardOverview = () => {
-  const stats = [
-    { label: 'Total Products', value: '156', change: '+12%', changeType: 'positive', icon: '📦' },
-    { label: 'Active Orders', value: '23', change: '+5%', changeType: 'positive', icon: '🛒' },
-    { label: 'Revenue', value: '₹45,230', change: '+18%', changeType: 'positive', icon: '💰' },
-    { label: 'Customers', value: '89', change: '+2%', changeType: 'positive', icon: '👥' },
+const DashboardOverview = ({ user, navigate }) => {
+  const isVerified = user?.isVerified || false;
+  const isFarmer = user?.userType === 'farmer';
+
+  // Farmer-specific data
+  const dailyPrices = [
+    { day: 'Mon', price: 3100 },
+    { day: 'Tue', price: 3150 },
+    { day: 'Wed', price: 3080 },
+    { day: 'Thu', price: 3200 },
+    { day: 'Fri', price: 3250 },
+    { day: 'Sat', price: 3180 },
+    { day: 'Sun', price: 3200 },
+  ];
+
+  const ongoingAuctions = [
+    { id: 'A001', spice: 'Cardamom (Green)', quantity: '50kg', currentBid: '₹3,200', timeLeft: '2h 15m', bidders: 8 },
+    { id: 'A002', spice: 'Black Pepper', quantity: '100kg', currentBid: '₹450', timeLeft: '4h 30m', bidders: 12 },
+    { id: 'A003', spice: 'Cinnamon', quantity: '75kg', currentBid: '₹280', timeLeft: '1h 45m', bidders: 5 },
+  ];
+
+  const notifications = [
+    { id: 1, type: 'auction', title: 'Auction A001 ending soon', message: 'Your cardamom auction has 2 hours left', time: '2m ago', unread: true },
+    { id: 2, type: 'payment', title: 'Payment received', message: '₹15,600 received for Black Pepper sale', time: '1h ago', unread: true },
+    { id: 3, type: 'auction', title: 'New bid on your auction', message: 'A002 received a bid of ₹450/kg', time: '3h ago', unread: false },
+    { id: 4, type: 'weather', title: 'Weather alert', message: 'Heavy rain expected in your area', time: '5h ago', unread: false },
+  ];
+
+  const weatherData = {
+    location: 'Kerala, India',
+    temperature: '28°C',
+    condition: 'Partly Cloudy',
+    humidity: '78%',
+    windSpeed: '12 km/h',
+    forecast: 'Heavy rain expected in 2 days'
+  };
+
+  // Buyer-specific data
+  const buyerStats = [
+    { label: 'Total Orders', value: '0', change: '+0%', changeType: 'neutral', icon: '🛒' },
+    { label: 'Wishlist Items', value: '0', change: '+0%', changeType: 'neutral', icon: '❤️' },
+    { label: 'Account Status', value: isVerified ? 'Verified' : 'Unverified', change: '', changeType: 'neutral', icon: '✅' },
   ];
 
   const recentOrders = [
-    { id: '#1234', customer: 'John Doe', product: 'Black Pepper', amount: '₹2,400', status: 'completed' },
-    { id: '#1235', customer: 'Jane Smith', product: 'Cardamom', amount: '₹1,800', status: 'pending' },
-    { id: '#1236', customer: 'Mike Johnson', product: 'Cinnamon', amount: '₹3,200', status: 'processing' },
+    { id: '#1234', spice: 'Black Pepper', quantity: '2kg', amount: '₹900', status: 'completed', date: '2 days ago' },
+    { id: '#1235', spice: 'Cardamom', quantity: '1kg', amount: '₹3,200', status: 'pending', date: '1 day ago' },
+  ];
+
+  const buyerNotifications = [
+    { id: 1, type: 'order', title: 'Order #1235 confirmed', message: 'Your cardamom order has been confirmed', time: '1h ago', unread: true },
+    { id: 2, type: 'delivery', title: 'Order #1234 delivered', message: 'Your Black Pepper order has been delivered', time: '2 days ago', unread: false },
   ];
 
   return (
     <div className="space-y-8">
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <div key={index} className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
-            <div className="flex items-center justify-between">
-              <div>
-                <div className="text-2xl mb-2">{stat.icon}</div>
-                <p className="text-sm font-medium text-gray-600">{stat.label}</p>
-                <p className="text-3xl font-bold text-gray-900 mt-1">{stat.value}</p>
-              </div>
-              <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
-                stat.changeType === 'positive' ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-              }`}>
-                {stat.change}
-              </div>
+      {isFarmer ? (
+        // Farmer Dashboard Content
+        <>
+          {/* Cardamom Price Overview - Kerala Only */}
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-gray-900">Today's Cardamom Price - Kerala</h3>
+              <span className="text-sm text-gray-500">Updated 2 minutes ago</span>
             </div>
-          </div>
-        ))}
-      </div>
-
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Chart Section */}
-        <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">Sales Overview</h3>
-          <div className="h-80 bg-gradient-to-br from-gray-50 to-gray-100 rounded-2xl flex items-center justify-center border-2 border-dashed border-gray-200">
-            <div className="text-center text-gray-500">
-              <svg className="w-20 h-20 mx-auto mb-4 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-              </svg>
-              <p className="text-lg font-medium">Chart visualization coming soon</p>
-              <p className="text-sm text-gray-400">Interactive charts and analytics</p>
-            </div>
-          </div>
-        </div>
-
-        {/* Recent Orders */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
-          <h3 className="text-xl font-bold text-gray-900 mb-6">Recent Orders</h3>
-          <div className="space-y-4">
-            {recentOrders.map((order) => (
-              <div key={order.id} className="flex items-center justify-between p-4 bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl border border-gray-200/50">
+            
+            {/* Current Price */}
+            <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200 mb-6">
+              <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-gray-900">{order.customer}</p>
-                  <p className="text-xs text-gray-600">{order.product}</p>
+                  <p className="text-sm font-medium text-gray-600">Kerala</p>
+                  <p className="text-3xl font-bold text-gray-900">₹3,200</p>
                 </div>
-                <div className="text-right">
-                  <p className="text-sm font-bold text-gray-900">{order.amount}</p>
-                  <span className={`inline-block px-3 py-1 text-xs rounded-full font-medium ${
-                    order.status === 'completed' ? 'bg-green-100 text-green-800' :
-                    order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
-                    'bg-blue-100 text-blue-800'
-                  }`}>
-                    {order.status}
-                  </span>
+                <div className="flex items-center space-x-1 text-green-600">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 17l9.2-9.2M17 17V7H7" />
+                  </svg>
+                  <span className="text-lg font-semibold">+5.2%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Daily Price Chart */}
+            <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
+              <h4 className="text-lg font-semibold text-gray-900 mb-4">7-Day Price Trend</h4>
+              <div className="h-64 relative">
+                <svg className="w-full h-full" viewBox="0 0 500 200" preserveAspectRatio="none">
+                  {/* Chart area */}
+                  <defs>
+                    <linearGradient id="priceGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity="0.1"/>
+                      <stop offset="100%" stopColor="#10b981" stopOpacity="0.05"/>
+                    </linearGradient>
+                  </defs>
+                  
+                  {/* Grid lines */}
+                  <g stroke="#e5e7eb" strokeWidth="1" opacity="0.5">
+                    {/* Horizontal grid lines */}
+                    <line x1="50" y1="30" x2="450" y2="30"/>
+                    <line x1="50" y1="80" x2="450" y2="80"/>
+                    <line x1="50" y1="130" x2="450" y2="130"/>
+                    <line x1="50" y1="180" x2="450" y2="180"/>
+                    
+                    {/* Vertical grid lines */}
+                    {dailyPrices.map((_, index) => {
+                      const x = 50 + (index * 400) / (dailyPrices.length - 1);
+                      return <line key={index} x1={x} y1="30" x2={x} y2="180"/>;
+                    })}
+                  </g>
+                  
+                  {/* Y-axis */}
+                  <line x1="50" y1="30" x2="50" y2="180" stroke="#374151" strokeWidth="2"/>
+                  
+                  {/* X-axis */}
+                  <line x1="50" y1="180" x2="450" y2="180" stroke="#374151" strokeWidth="2"/>
+                  
+                  {/* Price area fill */}
+                  <polygon
+                    fill="url(#priceGradient)"
+                    points={[
+                      `50,180`,
+                      ...dailyPrices.map((data, index) => {
+                        const maxPrice = Math.max(...dailyPrices.map(d => d.price));
+                        const minPrice = Math.min(...dailyPrices.map(d => d.price));
+                        const priceRange = maxPrice - minPrice;
+                        const x = 50 + (index * 400) / (dailyPrices.length - 1);
+                        const y = 180 - ((data.price - minPrice) / priceRange) * 150;
+                        return `${x},${y}`;
+                      }),
+                      `450,180`
+                    ].join(' ')}
+                  />
+                  
+                  {/* Price line */}
+                  <polyline
+                    fill="none"
+                    stroke="#10b981"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    points={dailyPrices.map((data, index) => {
+                      const maxPrice = Math.max(...dailyPrices.map(d => d.price));
+                      const minPrice = Math.min(...dailyPrices.map(d => d.price));
+                      const priceRange = maxPrice - minPrice;
+                      const x = 50 + (index * 400) / (dailyPrices.length - 1);
+                      const y = 180 - ((data.price - minPrice) / priceRange) * 150;
+                      return `${x},${y}`;
+                    }).join(' ')}
+                  />
+                  
+                  {/* Data points */}
+                  {dailyPrices.map((data, index) => {
+                    const maxPrice = Math.max(...dailyPrices.map(d => d.price));
+                    const minPrice = Math.min(...dailyPrices.map(d => d.price));
+                    const priceRange = maxPrice - minPrice;
+                    const x = 50 + (index * 400) / (dailyPrices.length - 1);
+                    const y = 180 - ((data.price - minPrice) / priceRange) * 150;
+                    return (
+                      <g key={index}>
+                        <circle
+                          cx={x}
+                          cy={y}
+                          r="5"
+                          fill="#10b981"
+                          stroke="#ffffff"
+                          strokeWidth="2"
+                        />
+                        <text
+                          x={x}
+                          y={y - 15}
+                          textAnchor="middle"
+                          className="text-xs fill-gray-700 font-semibold"
+                        >
+                          ₹{data.price}
+                        </text>
+                      </g>
+                    );
+                  })}
+                  
+                  {/* Y-axis labels */}
+                  <text x="45" y="35" textAnchor="end" className="text-xs fill-gray-600 font-medium">₹3,250</text>
+                  <text x="45" y="85" textAnchor="end" className="text-xs fill-gray-600 font-medium">₹3,165</text>
+                  <text x="45" y="135" textAnchor="end" className="text-xs fill-gray-600 font-medium">₹3,100</text>
+                  <text x="45" y="185" textAnchor="end" className="text-xs fill-gray-600 font-medium">₹3,080</text>
+                  
+                  {/* X-axis labels */}
+                  {dailyPrices.map((data, index) => {
+                    const x = 50 + (index * 400) / (dailyPrices.length - 1);
+                    return (
+                      <text
+                        key={index}
+                        x={x}
+                        y="195"
+                        textAnchor="middle"
+                        className="text-xs fill-gray-600 font-medium"
+                      >
+                        {data.day}
+                      </text>
+                    );
+                  })}
+                </svg>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        // Buyer Dashboard Content
+        <>
+          {/* Welcome Section */}
+          <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-2xl p-8 text-white">
+            <h1 className="text-3xl font-bold mb-2">Welcome, {user?.fullName || user?.name}!</h1>
+            <p className="text-blue-100">Browse and purchase quality spices from verified farmers</p>
+          </div>
+
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {buyerStats.map((stat, index) => (
+              <div key={index} className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-6 hover:shadow-xl transition-all duration-300 hover:-translate-y-1">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="text-2xl mb-2">{stat.icon}</div>
+                    <p className="text-sm font-medium text-gray-600">{stat.label}</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-1">{stat.value}</p>
+                  </div>
                 </div>
               </div>
             ))}
           </div>
-        </div>
+        </>
+      )}
+
+      {/* Blurred Sections Container with Verify Button Overlay */}
+      <div className="relative">
+        {isFarmer ? (
+          // Farmer-specific blurred sections
+          <>
+            {/* Main Content Grid - Blurred if not verified */}
+            <div className={`grid grid-cols-1 lg:grid-cols-3 gap-8 ${!isVerified ? 'blur-sm pointer-events-none' : ''}`}>
+              {/* Ongoing Auctions Summary */}
+              <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold text-gray-900">Ongoing Auctions Summary</h3>
+                  <button className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                    View All
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {ongoingAuctions.map((auction) => (
+                    <div key={auction.id} className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
+                      <div className="flex items-center justify-between">
+                        <div className="flex-1">
+                          <div className="flex items-center space-x-3 mb-2">
+                            <span className="font-semibold text-gray-900">{auction.spice}</span>
+                            <span className="text-sm text-gray-600">({auction.quantity})</span>
+                          </div>
+                          <div className="flex items-center space-x-4 text-sm text-gray-600">
+                            <span>Current: <span className="font-semibold text-gray-900">{auction.currentBid}/kg</span></span>
+                            <span>•</span>
+                            <span>{auction.bidders} bidders</span>
+                            <span>•</span>
+                            <span className="text-orange-600 font-medium">{auction.timeLeft} left</span>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-xs text-gray-500">Auction ID</span>
+                          <p className="text-sm font-mono text-gray-700">{auction.id}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Notifications */}
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-xl font-bold text-gray-900">Notifications</h3>
+                  <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                    {notifications.filter(n => n.unread).length} new
+                  </span>
+                </div>
+                <div className="space-y-3">
+                  {notifications.map((notification) => (
+                    <div key={notification.id} className={`p-3 rounded-lg border ${
+                      notification.unread 
+                        ? 'bg-blue-50 border-blue-200' 
+                        : 'bg-gray-50 border-gray-200'
+                    }`}>
+                      <div className="flex items-start space-x-3">
+                        <div className={`w-2 h-2 rounded-full mt-2 ${
+                          notification.type === 'auction' ? 'bg-orange-500' :
+                          notification.type === 'payment' ? 'bg-green-500' :
+                          'bg-blue-500'
+                        }`}></div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
+                          <p className="text-xs text-gray-600 mt-1">{notification.message}</p>
+                          <p className="text-xs text-gray-400 mt-1">{notification.time}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Weather Updates and Quick Links - Blurred if not verified */}
+            <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8 ${!isVerified ? 'blur-sm pointer-events-none' : ''}`}>
+              {/* Weather Updates */}
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+                <h3 className="text-xl font-bold text-gray-900 mb-6">Weather Updates</h3>
+                <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-sm text-gray-600">Farm Location</p>
+                      <p className="font-semibold text-gray-900">{weatherData.location}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-3xl font-bold text-gray-900">{weatherData.temperature}</p>
+                      <p className="text-sm text-gray-600">{weatherData.condition}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600">Humidity</p>
+                      <p className="font-semibold text-gray-900">{weatherData.humidity}</p>
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm text-gray-600">Wind Speed</p>
+                      <p className="font-semibold text-gray-900">{weatherData.windSpeed}</p>
+                    </div>
+                  </div>
+                  <div className="bg-yellow-100 border border-yellow-200 rounded-lg p-3">
+                    <p className="text-sm text-yellow-800">
+                      <span className="font-semibold">Forecast:</span> {weatherData.forecast}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Quick Links */}
+              <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+                <h3 className="text-xl font-bold text-gray-900 mb-6">Quick Links</h3>
+                <div className="space-y-4">
+                  <button className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white p-4 rounded-xl flex items-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                    </svg>
+                    <span className="font-semibold">Add Inventory</span>
+                  </button>
+                  <button className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white p-4 rounded-xl flex items-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="font-semibold">Start Auction</span>
+                  </button>
+                  <button className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white p-4 rounded-xl flex items-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                    <span className="font-semibold">View Analytics</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </>
+        ) : (
+          // Buyer-specific blurred sections
+          <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 ${!isVerified ? 'blur-sm pointer-events-none' : ''}`}>
+            {/* Recent Orders */}
+            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">Recent Orders</h3>
+                <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+                  View All
+                </button>
+              </div>
+              <div className="space-y-4">
+                {recentOrders.map((order) => (
+                  <div key={order.id} className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <span className="font-semibold text-gray-900">{order.spice}</span>
+                          <span className="text-sm text-gray-600">({order.quantity})</span>
+                        </div>
+                        <div className="flex items-center space-x-4 text-sm text-gray-600">
+                          <span>Amount: <span className="font-semibold text-gray-900">{order.amount}</span></span>
+                          <span>•</span>
+                          <span className="text-gray-500">{order.date}</span>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <span className={`inline-block px-3 py-1 text-xs rounded-full font-medium ${
+                          order.status === 'completed' ? 'bg-green-100 text-green-800' :
+                          order.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          'bg-blue-100 text-blue-800'
+                        }`}>
+                          {order.status}
+                        </span>
+                        <p className="text-xs text-gray-500 mt-1">{order.id}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Notifications */}
+            <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-xl font-bold text-gray-900">Notifications</h3>
+                <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                  {buyerNotifications.filter(n => n.unread).length} new
+                </span>
+              </div>
+              <div className="space-y-3">
+                {buyerNotifications.map((notification) => (
+                  <div key={notification.id} className={`p-3 rounded-lg border ${
+                    notification.unread 
+                      ? 'bg-blue-50 border-blue-200' 
+                      : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className="flex items-start space-x-3">
+                      <div className={`w-2 h-2 rounded-full mt-2 ${
+                        notification.type === 'order' ? 'bg-blue-500' :
+                        notification.type === 'delivery' ? 'bg-green-500' :
+                        'bg-orange-500'
+                      }`}></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
+                        <p className="text-xs text-gray-600 mt-1">{notification.message}</p>
+                        <p className="text-xs text-gray-400 mt-1">{notification.time}</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Verify Button Overlay - Centered in middle of blurred sections */}
+        {!isVerified && (
+          <div className="absolute inset-0 flex items-center justify-center z-10 pointer-events-none">
+            <div className="bg-white/95 backdrop-blur-sm rounded-2xl p-8 shadow-2xl border border-white/30 pointer-events-auto">
+              <div className="text-center">
+                <div className="w-16 h-16 bg-gradient-to-r from-orange-500 to-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                  <svg className="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                  </svg>
+                </div>
+                <h3 className="text-xl font-bold text-gray-900 mb-2">Account Verification Required</h3>
+                <p className="text-gray-600 mb-6">Please verify your account to access all dashboard features</p>
+                <button 
+                  onClick={() => navigate('/farmer/verification')}
+                  className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-6 py-3 rounded-xl font-semibold flex items-center space-x-2 mx-auto transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                  </svg>
+                  <span>Verify Account</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
 };
 
-const ProductsSection = () => (
-  <div className="space-y-8">
-    <div className="flex justify-between items-center">
-      <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">Products</h2>
-      <button className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-teal-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-        Add Product
-      </button>
-    </div>
-    <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-12">
-      <div className="text-center text-gray-500">
-        <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
-          </svg>
-        </div>
-        <h3 className="text-xl font-semibold text-gray-700 mb-2">Products Management</h3>
-        <p className="text-gray-500">Manage your spice products inventory</p>
-      </div>
-    </div>
-  </div>
-);
-
-const OrdersSection = () => (
-  <div className="space-y-8">
-    <div className="flex justify-between items-center">
-      <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">Orders</h2>
-      <button className="bg-gradient-to-r from-emerald-500 to-teal-500 text-white px-6 py-3 rounded-xl font-semibold hover:from-emerald-600 hover:to-teal-600 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
-        View All Orders
-      </button>
-    </div>
-    <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-12">
-      <div className="text-center text-gray-500">
-        <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 3h2l.4 2M7 13h10l4-8H5.4m0 0L7 13m0 0l-2.5 5M7 13l2.5 5m6-5v6a2 2 0 01-2 2H9a2 2 0 01-2-2v-6m8 0V9a2 2 0 00-2-2H9a2 2 0 00-2 2v4.01" />
-          </svg>
-        </div>
-        <h3 className="text-xl font-semibold text-gray-700 mb-2">Orders Management</h3>
-        <p className="text-gray-500">Track and manage customer orders</p>
-      </div>
-    </div>
-  </div>
-);
-
-const AnalyticsSection = () => (
-  <div className="space-y-8">
-    <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">Analytics</h2>
-    <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-12">
-      <div className="text-center text-gray-500">
-        <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-        </div>
-        <h3 className="text-xl font-semibold text-gray-700 mb-2">Analytics Dashboard</h3>
-        <p className="text-gray-500">Comprehensive insights and metrics</p>
-      </div>
-    </div>
-  </div>
-);
-
-const ReportsSection = () => (
-  <div className="space-y-8">
-    <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">Reports</h2>
-    <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-12">
-      <div className="text-center text-gray-500">
-        <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-          </svg>
-        </div>
-        <h3 className="text-xl font-semibold text-gray-700 mb-2">Reports Generation</h3>
-        <p className="text-gray-500">Generate detailed business reports</p>
-      </div>
-    </div>
-  </div>
-);
-
-const UsersSection = () => (
-  <div className="space-y-8">
-    <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">Users</h2>
-    <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-12">
-      <div className="text-center text-gray-500">
-        <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
-          </svg>
-        </div>
-        <h3 className="text-xl font-semibold text-gray-700 mb-2">User Management</h3>
-        <p className="text-gray-500">Manage platform users and permissions</p>
-      </div>
-    </div>
-  </div>
-);
-
-const SettingsSection = () => (
-  <div className="space-y-8">
-    <h2 className="text-3xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent">Settings</h2>
-    <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-12">
-      <div className="text-center text-gray-500">
-        <div className="w-24 h-24 bg-gradient-to-br from-gray-100 to-gray-200 rounded-2xl flex items-center justify-center mx-auto mb-6">
-          <svg className="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-          </svg>
-        </div>
-        <h3 className="text-xl font-semibold text-gray-700 mb-2">Settings Configuration</h3>
-        <p className="text-gray-500">Customize your platform preferences</p>
-      </div>
-    </div>
-  </div>
-);
 
 export default DynamicDashboard;

@@ -6,7 +6,9 @@ import FarmerRegister from './pages/register/FarmerRegister'
 import BuyerRegister from './pages/register/BuyerRegister'
 import FarmerRegisterGoogle from './pages/register/FarmerRegisterGoogle'
 import BuyerRegisterGoogle from './pages/register/BuyerRegisterGoogle'
-import DynamicDashboard from './components/DynamicDashboard'
+import DashboardRouter from './components/DashboardRouter'
+import FarmerVerification from './pages/farmer/FarmerVerification'
+import AadhaarVerificationResults from './pages/farmer/AadhaarVerificationResults'
 import ProtectedRoute from './components/ProtectedRoute'
 import AuthRedirect from './components/AuthRedirect'
 
@@ -43,7 +45,17 @@ function App() {
           } />
           <Route path="/dashboard" element={
             <ProtectedRoute>
-              <DynamicDashboard />
+              <DashboardRouter />
+            </ProtectedRoute>
+          } />
+          <Route path="/farmer/verification" element={
+            <ProtectedRoute>
+              <FarmerVerification />
+            </ProtectedRoute>
+          } />
+          <Route path="/farmer/verification/results" element={
+            <ProtectedRoute>
+              <AadhaarVerificationResults />
             </ProtectedRoute>
           } />
         </Routes>
