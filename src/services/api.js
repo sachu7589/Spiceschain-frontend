@@ -65,6 +65,24 @@ export const authAPI = {
     return response.data;
   },
 
+  // Get all farmers
+  getAllFarmers: async () => {
+    const response = await api.get('/api/auth/farmer');
+    return response.data;
+  },
+
+  // Get all buyers
+  getAllBuyers: async () => {
+    const response = await api.get('/api/auth/buyer');
+    return response.data;
+  },
+
+  // Get Aadhaar verification details
+  getAadhaarVerification: async (userId) => {
+    const response = await api.get(`/api/verification/aadhaar/${userId}`);
+    return response.data;
+  },
+
   // Google login
   googleLogin: async (googleData) => {
     const response = await api.post('/api/auth/google/login', googleData);

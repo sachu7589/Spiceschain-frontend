@@ -2,6 +2,7 @@ import React from 'react';
 import { useAuth } from '../context/AuthContext';
 import FarmerDashboard from './FarmerDashboard';
 import BuyerDashboard from './BuyerDashboard';
+import AdminDashboard from '../pages/admin/AdminDashboard';
 
 const DashboardRouter = () => {
   const { user } = useAuth();
@@ -22,6 +23,8 @@ const DashboardRouter = () => {
     return <FarmerDashboard />;
   } else if (user.userType === 'buyer') {
     return <BuyerDashboard />;
+  } else if (user.userType === 'admin') {
+    return <AdminDashboard />;
   }
 
   // Fallback for unknown user types
