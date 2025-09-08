@@ -108,6 +108,26 @@ const weatherApi = axios.create({
   timeout: 10000, // 10 second timeout
 });
 
+// Create separate axios instance for Inventory API (port 3001)
+const inventoryApi = axios.create({
+  baseURL: 'http://localhost:3001',
+  timeout: 30000, // 30 second timeout for file uploads
+});
+
+// Add auth token interceptor for inventory API
+inventoryApi.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
 // Aadhaar Verification API functions
 export const aadhaarAPI = {
   // Health check
@@ -545,6 +565,84 @@ export const weatherAPI = {
     };
     
     return mockWeatherData;
+  }
+};
+
+// Inventory API functions
+export const inventoryAPI = {
+  // Add inventory item
+  addInventory: async (inventoryData) => {
+    const formData = new FormData();
+    formData.append('userid', inventoryData.userid);
+    formData.append('spiceName', inventoryData.spiceName);
+    formData.append('weight', inventoryData.weight);
+    formData.append('grade', inventoryData.grade);
+    formData.append('status', inventoryData.status || 'available');
+    if (inventoryData.spiceImage) {
+      formData.append('spiceImage', inventoryData.spiceImage);
+    }
+
+    const response = await inventoryApi.post('/api/inventory', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Get inventory by user ID
+  getInventoryByUser: async (userId) => {
+    const response = await inventoryApi.get(`/api/inventory/user/${userId}`);
+    return response.data;
+  },
+
+  // Get single inventory item
+  getInventoryItem: async (itemId) => {
+    const response = await inventoryApi.get(`/api/inventory/${itemId}`);
+    return response.data;
+  },
+
+  // Update inventory item (full update with image)
+  updateInventoryItem: async (itemId, inventoryData) => {
+    const formData = new FormData();
+    formData.append('spiceName', inventoryData.spiceName);
+    formData.append('weight', inventoryData.weight);
+    formData.append('grade', inventoryData.grade);
+    formData.append('status', inventoryData.status || 'available');
+    if (inventoryData.spiceImage) {
+      formData.append('spiceImage', inventoryData.spiceImage);
+    }
+
+    const response = await inventoryApi.put(`/api/inventory/${itemId}`, formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  // Update specific fields only (PATCH)
+  updateInventoryStatus: async (itemId, status) => {
+    const response = await inventoryApi.patch(`/api/inventory/${itemId}`, {
+      status: status
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    return response.data;
+  },
+
+  // Delete inventory item
+  deleteInventoryItem: async (itemId) => {
+    const response = await inventoryApi.delete(`/api/inventory/${itemId}`);
+    return response.data;
+  },
+
+  // Get all inventory (admin)
+  getAllInventory: async () => {
+    const response = await inventoryApi.get('/api/inventory');
+    return response.data;
   }
 };
 

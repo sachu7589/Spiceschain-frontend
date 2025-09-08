@@ -75,7 +75,10 @@ const FarmerDashboard = () => {
               <FaPlus className="text-xl" />
               <span className="font-medium">Add Spices</span>
             </button>
-            <button className="bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-lg flex flex-col items-center space-y-2 transition-colors">
+            <button 
+              onClick={() => navigate('/farmer/inventory')}
+              className="bg-blue-500 hover:bg-blue-600 text-white p-4 rounded-lg flex flex-col items-center space-y-2 transition-colors"
+            >
               <FaBox className="text-xl" />
               <span className="font-medium">My Inventory</span>
             </button>

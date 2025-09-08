@@ -15,41 +15,17 @@ import {
   FaImage,
   FaWeight,
   FaTag,
-  FaMapMarkerAlt
+  FaMapMarkerAlt,
+  FaRupeeSign
 } from 'react-icons/fa';
-import { locationAPI } from '../services/api';
+import Swal from 'sweetalert2';
+import { useNavigate } from 'react-router-dom';
+import { locationAPI, inventoryAPI, spicePricesAPI } from '../services/api';
 
 const InventoryManagement = ({ user }) => {
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState('list');
-  const [inventory, setInventory] = useState([
-    {
-      id: 1,
-      name: 'Cardamom',
-      image: '/api/placeholder/300/200',
-      weight: 25.5,
-      status: 'available',
-      addedDate: '2024-01-15',
-      location: 'Kerala, India'
-    },
-    {
-      id: 2,
-      name: 'Cardamom',
-      image: '/api/placeholder/300/200',
-      weight: 50.0,
-      status: 'sold',
-      addedDate: '2024-01-10',
-      location: 'Kerala, India'
-    },
-    {
-      id: 3,
-      name: 'Cardamom',
-      image: '/api/placeholder/300/200',
-      weight: 15.0,
-      status: 'pending_auction',
-      addedDate: '2024-01-12',
-      location: 'Kerala, India'
-    }
-  ]);
+  const [inventory, setInventory] = useState([]);
   
   const [filterStatus, setFilterStatus] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
@@ -65,6 +41,10 @@ const InventoryManagement = ({ user }) => {
     location: '',
     image: null
   });
+
+  const [currentGrade, setCurrentGrade] = useState('');
+  const [markAsSold, setMarkAsSold] = useState(false);
+  const [cardamomPrices, setCardamomPrices] = useState(null);
 
   const [weightError, setWeightError] = useState('');
   const [isGrading, setIsGrading] = useState(false);
@@ -105,6 +85,43 @@ const InventoryManagement = ({ user }) => {
     fetchFarmLocation();
   }, [user]);
 
+  // Fetch inventory data
+  useEffect(() => {
+    const fetchInventory = async () => {
+      if (user?.id) {
+        try {
+          const inventoryData = await inventoryAPI.getInventoryByUser(user.id);
+          setInventory(inventoryData || []);
+        } catch (error) {
+          console.error('Error fetching inventory:', error);
+          setInventory([]);
+        }
+      }
+    };
+
+    fetchInventory();
+  }, [user?.id]);
+
+  // Fetch cardamom prices for price calculation
+  useEffect(() => {
+    const fetchCardamomPrices = async () => {
+      try {
+        const latestPrice = await spicePricesAPI.getLatestCardamomPrice();
+        setCardamomPrices(latestPrice);
+      } catch (error) {
+        console.error('Error fetching cardamom prices:', error);
+        // Fallback to mock data
+        setCardamomPrices({
+          avg_amount: 2583.275,
+          min_amount: 2565.8,
+          max_amount: 2600.75
+        });
+      }
+    };
+
+    fetchCardamomPrices();
+  }, []);
+
   const statusOptions = [
     { value: 'all', label: 'All Items', icon: FaBox, color: 'gray' },
     { value: 'available', label: 'Available', icon: FaCheckCircle, color: 'green' },
@@ -113,6 +130,36 @@ const InventoryManagement = ({ user }) => {
   ];
 
   const spiceOptions = ['Cardamom'];
+
+  // Calculate expected price based on grade
+  const calculateExpectedPrice = (grade, weight) => {
+    if (!cardamomPrices || !grade || !weight) return null;
+    
+    let pricePerKg = 0;
+    
+    switch (grade.toUpperCase()) {
+      case 'A':
+        pricePerKg = cardamomPrices.max_amount || cardamomPrices.avg_amount || 2600;
+        break;
+      case 'B':
+        pricePerKg = cardamomPrices.avg_amount || 2583;
+        break;
+      case 'C':
+        pricePerKg = cardamomPrices.min_amount || cardamomPrices.avg_amount || 2565;
+        break;
+      case 'D':
+        return { price: 0, message: 'Under quality product' };
+      default:
+        pricePerKg = cardamomPrices.avg_amount || 2583;
+    }
+    
+    const totalPrice = pricePerKg * weight;
+    return {
+      price: Math.round(totalPrice),
+      pricePerKg: Math.round(pricePerKg),
+      weight: weight
+    };
+  };
 
   const detectCardamomGrade = async (file) => {
     setIsGrading(true);
@@ -139,6 +186,9 @@ const InventoryManagement = ({ user }) => {
         setDetectedGrade(result.grade);
         setGradeConfidence(result.confidence);
         setGradeDetails(result.details);
+        
+        // Auto-set the grade for the form
+        setCurrentGrade(result.grade);
       } else {
         throw new Error('Invalid response from grading API');
       }
@@ -172,27 +222,36 @@ const InventoryManagement = ({ user }) => {
 
   const validateAndProcessFile = (file) => {
     // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/jpg'];
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png'];
     if (!allowedTypes.includes(file.type)) {
-      alert('Please upload only JPG/JPEG image files');
+      alert('Please upload only JPG/JPEG/PNG image files');
       return;
     }
     
-    // Validate file size (2MB = 2 * 1024 * 1024 bytes)
-    const maxSize = 2 * 1024 * 1024;
+    // Validate file size (5MB = 5 * 1024 * 1024 bytes)
+    const maxSize = 5 * 1024 * 1024;
     if (file.size > maxSize) {
-      alert('File size must be less than 2MB');
+      alert('File size must be less than 5MB');
       return;
     }
     
     const reader = new FileReader();
     reader.onload = (e) => {
-      setNewItem({ ...newItem, image: e.target.result });
+      setNewItem({ 
+        ...newItem, 
+        image: e.target.result,
+        imageFile: file
+      });
     };
     reader.readAsDataURL(file);
     
-    // Detect cardamom grade
-    detectCardamomGrade(file);
+    // Detect cardamom grade if it's cardamom
+    if (newItem.name === 'Cardamom') {
+      detectCardamomGrade(file);
+    } else {
+      // For non-cardamom spices, set a default grade
+      setCurrentGrade('Standard');
+    }
   };
 
   const handleImageUpload = (event) => {
@@ -217,93 +276,229 @@ const InventoryManagement = ({ user }) => {
     }
   };
 
-  const handleAddItem = (e) => {
+  const handleAddItem = async (e) => {
     e.preventDefault();
     
     // Validate weight before adding
     if (!validateWeight(newItem.weight)) {
       return;
     }
+
+    if (!currentGrade) {
+      alert('Please upload an image to detect the grade');
+      return;
+    }
     
-    const newId = Math.max(...inventory.map(item => item.id)) + 1;
-    const item = {
-      ...newItem,
-      id: newId,
-      weight: parseFloat(newItem.weight),
-      addedDate: new Date().toISOString().split('T')[0],
-      status: 'available'
-    };
-    setInventory([...inventory, item]);
-    setNewItem({
-      name: 'Cardamom',
-      weight: '',
-      location: farmLocation,
-      image: null
-    });
-    setWeightError('');
-    setDetectedGrade('');
-    setGradeConfidence(0);
-    setGradeDetails(null);
-    setShowAddForm(false);
+    try {
+      const inventoryData = {
+        userid: user.id,
+        spiceName: newItem.name,
+        weight: parseFloat(newItem.weight),
+        grade: currentGrade || 'Standard',
+        status: 'available',
+        spiceImage: newItem.imageFile || null
+      };
+
+      const response = await inventoryAPI.addInventory(inventoryData);
+      
+      // Refresh inventory list
+      const updatedInventory = await inventoryAPI.getInventoryByUser(user.id);
+      setInventory(updatedInventory || []);
+      
+      // Reset form
+      setNewItem({
+        name: 'Cardamom',
+        weight: '',
+        location: farmLocation,
+        image: null,
+        imageFile: null
+      });
+      setWeightError('');
+      setDetectedGrade('');
+      setGradeConfidence(0);
+      setGradeDetails(null);
+      setCurrentGrade('');
+      setShowAddForm(false);
+      
+      // Show success alert and redirect
+      Swal.fire({
+        position: 'top-end',
+        icon: 'success',
+        title: 'Inventory Added Successfully!',
+        text: `${newItem.name} has been added to your inventory`,
+        showConfirmButton: false,
+        timer: 2000,
+        toast: true,
+        background: '#10B981',
+        color: '#ffffff',
+        iconColor: '#ffffff'
+      }).then(() => {
+        // Switch to inventory list tab
+        setActiveTab('list');
+      });
+    } catch (error) {
+      console.error('Error adding inventory item:', error);
+      Swal.fire({
+        position: 'top-end',
+        icon: 'error',
+        title: 'Failed to Add Inventory',
+        text: 'Please try again later',
+        showConfirmButton: false,
+        timer: 3000,
+        toast: true,
+        background: '#EF4444',
+        color: '#ffffff',
+        iconColor: '#ffffff'
+      });
+    }
   };
 
   const handleEditItem = (item) => {
     setEditingItem(item);
     setNewItem({
-      name: item.name,
+      name: item.spiceName || item.name,
       weight: item.weight.toString(),
-      location: item.location,
-      image: item.image
+      location: item.location || farmLocation,
+      image: item.spiceImage 
+        ? (item.spiceImage.startsWith('http') 
+            ? item.spiceImage 
+            : `http://localhost:3001${item.spiceImage}`)
+        : (item.image || '/api/placeholder/100/100')
     });
+    setCurrentGrade(item.grade || '');
+    setMarkAsSold(item.status === 'sold');
     setShowAddForm(true);
   };
 
-  const handleUpdateItem = (e) => {
+  const handleUpdateItem = async (e) => {
     e.preventDefault();
     
     // Validate weight before updating
     if (!validateWeight(newItem.weight)) {
       return;
     }
+
+    if (!currentGrade) {
+      alert('Please upload an image to detect the grade');
+      return;
+    }
     
-    const updatedInventory = inventory.map(item =>
-      item.id === editingItem.id
-        ? {
-            ...item,
-            ...newItem,
-            weight: parseFloat(newItem.weight)
-          }
-        : item
-    );
-    setInventory(updatedInventory);
-    setEditingItem(null);
-    setShowAddForm(false);
-    setWeightError('');
-    setDetectedGrade('');
-    setGradeConfidence(0);
-    setGradeDetails(null);
-    setNewItem({
-      name: 'Cardamom',
-      weight: '',
-      location: farmLocation,
-      image: null
-    });
+    try {
+      const newStatus = markAsSold ? 'sold' : (editingItem.status || 'available');
+      
+      // If only status changed and no new image, use PATCH
+      if (markAsSold !== (editingItem.status === 'sold') && !newItem.imageFile) {
+        await inventoryAPI.updateInventoryStatus(editingItem._id || editingItem.id, newStatus);
+      } else {
+        // Full update with PUT
+        const inventoryData = {
+          spiceName: newItem.name,
+          weight: parseFloat(newItem.weight),
+          grade: currentGrade || 'Standard',
+          status: newStatus,
+          spiceImage: newItem.imageFile || null
+        };
+
+        await inventoryAPI.updateInventoryItem(editingItem._id || editingItem.id, inventoryData);
+      }
+      
+      // Refresh inventory list
+      const updatedInventory = await inventoryAPI.getInventoryByUser(user.id);
+      setInventory(updatedInventory || []);
+      
+      setEditingItem(null);
+      setShowAddForm(false);
+      setWeightError('');
+      setDetectedGrade('');
+      setGradeConfidence(0);
+      setGradeDetails(null);
+      setNewItem({
+        name: 'Cardamom',
+        weight: '',
+        location: farmLocation,
+        image: null,
+        imageFile: null
+      });
+      setMarkAsSold(false);
+      
+      Swal.fire({
+        position: 'top-end',
+        icon: 'success',
+        title: 'Inventory Updated!',
+        text: `${newItem.name} has been updated successfully`,
+        showConfirmButton: false,
+        timer: 2000,
+        toast: true,
+        background: '#10B981',
+        color: '#ffffff',
+        iconColor: '#ffffff'
+      });
+    } catch (error) {
+      console.error('Error updating inventory item:', error);
+      Swal.fire({
+        position: 'top-end',
+        icon: 'error',
+        title: 'Failed to Update',
+        text: 'Please try again later',
+        showConfirmButton: false,
+        timer: 3000,
+        toast: true,
+        background: '#EF4444',
+        color: '#ffffff',
+        iconColor: '#ffffff'
+      });
+    }
   };
 
-  const handleDeleteItem = (id) => {
+  const handleDeleteItem = async (item) => {
     if (window.confirm('Are you sure you want to delete this item?')) {
-      setInventory(inventory.filter(item => item.id !== id));
+      try {
+        await inventoryAPI.deleteInventoryItem(item._id || item.id);
+        
+        // Refresh inventory list
+        const updatedInventory = await inventoryAPI.getInventoryByUser(user.id);
+        setInventory(updatedInventory || []);
+        
+        Swal.fire({
+          position: 'top-end',
+          icon: 'success',
+          title: 'Inventory Deleted!',
+          text: 'Item has been removed from your inventory',
+          showConfirmButton: false,
+          timer: 2000,
+          toast: true,
+          background: '#10B981',
+          color: '#ffffff',
+          iconColor: '#ffffff'
+        });
+      } catch (error) {
+        console.error('Error deleting inventory item:', error);
+        Swal.fire({
+          position: 'top-end',
+          icon: 'error',
+          title: 'Failed to Delete',
+          text: 'Please try again later',
+          showConfirmButton: false,
+          timer: 3000,
+          toast: true,
+          background: '#EF4444',
+          color: '#ffffff',
+          iconColor: '#ffffff'
+        });
+      }
     }
   };
 
   const filteredInventory = inventory.filter(item => {
-    const matchesStatus = filterStatus === 'all' || item.status === filterStatus;
-    const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = filterStatus === 'all' || (item.status || 'available') === filterStatus;
+    const itemName = item.spiceName || item.name || '';
+    const matchesSearch = itemName.toLowerCase().includes(searchTerm.toLowerCase());
     return matchesStatus && matchesSearch;
   });
 
   const getStatusColor = (status) => {
-    switch (status) {
+    const itemStatus = status || 'available';
+    switch (itemStatus) {
       case 'available': return 'bg-green-100 text-green-800';
       case 'sold': return 'bg-red-100 text-red-800';
       case 'pending_auction': return 'bg-yellow-100 text-yellow-800';
@@ -312,7 +507,8 @@ const InventoryManagement = ({ user }) => {
   };
 
   const getStatusIcon = (status) => {
-    switch (status) {
+    const itemStatus = status || 'available';
+    switch (itemStatus) {
       case 'available': return <FaCheckCircle className="w-4 h-4" />;
       case 'sold': return <FaTimesCircle className="w-4 h-4" />;
       case 'pending_auction': return <FaClock className="w-4 h-4" />;
@@ -329,6 +525,66 @@ const InventoryManagement = ({ user }) => {
           <p className="text-gray-600">Manage your spice inventory and track sales</p>
         </div>
       </div>
+
+      {/* Summary Cards */}
+      {(() => {
+        const totalKg = inventory.reduce((sum, item) => sum + (item.weight || 0), 0);
+        const totalEstimatedAmount = inventory.reduce((sum, item) => {
+          if (item.status === 'sold' || !item.grade || !item.weight) return sum;
+          const priceInfo = calculateExpectedPrice(item.grade, item.weight);
+          return sum + (priceInfo?.price || 0);
+        }, 0);
+        const availableItems = inventory.filter(item => item.status === 'available').length;
+        const soldItems = inventory.filter(item => item.status === 'sold').length;
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            {/* Total Weight */}
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-blue-100 text-sm font-medium">Total Weight</p>
+                  <p className="text-2xl font-bold">{totalKg.toFixed(1)} kg</p>
+                </div>
+                <FaWeight className="w-8 h-8 text-blue-200" />
+              </div>
+            </div>
+
+            {/* Estimated Value */}
+            <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-green-100 text-sm font-medium">Estimated Value</p>
+                  <p className="text-2xl font-bold">₹{totalEstimatedAmount.toLocaleString()}</p>
+                </div>
+                <FaRupeeSign className="w-8 h-8 text-green-200" />
+              </div>
+            </div>
+
+            {/* Available Items */}
+            <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-emerald-100 text-sm font-medium">Available Items</p>
+                  <p className="text-2xl font-bold">{availableItems}</p>
+                </div>
+                <FaCheckCircle className="w-8 h-8 text-emerald-200" />
+              </div>
+            </div>
+
+            {/* Sold Items */}
+            <div className="bg-gradient-to-r from-gray-500 to-gray-600 text-white p-4 rounded-lg">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-gray-100 text-sm font-medium">Sold Items</p>
+                  <p className="text-2xl font-bold">{soldItems}</p>
+                </div>
+                <FaTimesCircle className="w-8 h-8 text-gray-200" />
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Tabs */}
       <div className="flex space-x-1 bg-gray-100 p-1 rounded-lg w-fit">
@@ -407,16 +663,19 @@ const InventoryManagement = ({ user }) => {
                  onClick={() => {
                    setShowAddForm(false);
                    setEditingItem(null);
-                   setWeightError('');
-                   setDetectedGrade('');
-                   setGradeConfidence(0);
-                   setGradeDetails(null);
-                   setNewItem({
-                     name: 'Cardamom',
-                     weight: '',
-                     location: farmLocation,
-                     image: null
-                   });
+      setWeightError('');
+      setDetectedGrade('');
+      setGradeConfidence(0);
+      setGradeDetails(null);
+      setCurrentGrade('');
+      setMarkAsSold(false);
+      setNewItem({
+        name: 'Cardamom',
+        weight: '',
+        location: farmLocation,
+        image: null,
+        imageFile: null
+      });
                  }}
                className="text-gray-400 hover:text-gray-600"
              >
@@ -464,31 +723,32 @@ const InventoryManagement = ({ user }) => {
                            Upload Image
                          </button>
                          <p className="text-gray-500 text-sm">or drag and drop</p>
-                         <p className="text-gray-400 text-xs mt-1">JPG/JPEG format, max 2MB</p>
+                         <p className="text-gray-400 text-xs mt-1">JPG/JPEG/PNG format, max 5MB</p>
                        </div>
                      </div>
                   )}
                    <input
                      ref={fileInputRef}
                      type="file"
-                     accept="image/jpeg,image/jpg"
+                     accept="image/jpeg,image/jpg,image/png"
                      onChange={handleImageUpload}
                      className="hidden"
                    />
                 </div>
                 
                 {/* Grade Detection Results */}
-                {(isGrading || detectedGrade) && (
-                  <div className="mt-2">
+                {(isGrading || currentGrade) && (
+                  <div className="mt-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
                     {isGrading ? (
                       <div className="flex items-center space-x-2">
                         <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                        <span className="text-sm text-blue-600">Processing image...</span>
+                        <span className="text-sm text-blue-600">Analyzing image for grade detection...</span>
                       </div>
                     ) : (
-                      <p className="text-lg text-gray-600 text-center">
-                        Grade: <span className="font-bold text-blue-800 text-xl">{detectedGrade}</span>
-                      </p>
+                      <div className="text-center">
+                        <p className="text-sm text-blue-700 mb-1">Grade</p>
+                        <p className="text-2xl font-bold text-blue-800">{currentGrade}</p>
+                      </div>
                     )}
                   </div>
                 )}
@@ -533,6 +793,7 @@ const InventoryManagement = ({ user }) => {
                    )}
                  </div>
 
+
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     <FaMapMarkerAlt className="inline w-4 h-4 mr-1" />
@@ -549,6 +810,27 @@ const InventoryManagement = ({ user }) => {
                     )}
                   </div>
                 </div>
+
+                {/* Mark as Sold Checkbox - Only show when editing */}
+                {editingItem && (
+                  <div className="flex items-center space-x-3 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="markAsSold"
+                      checked={markAsSold}
+                      onChange={(e) => setMarkAsSold(e.target.checked)}
+                      className="w-4 h-4 text-emerald-600 bg-gray-100 border-gray-300 rounded focus:ring-emerald-500 focus:ring-2"
+                    />
+                    <label htmlFor="markAsSold" className="text-sm font-medium text-yellow-800">
+                      Mark as Sold
+                    </label>
+                    {markAsSold && (
+                      <span className="text-xs text-yellow-600 bg-yellow-100 px-2 py-1 rounded">
+                        Status will be updated to "sold"
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </div>
 
@@ -560,16 +842,19 @@ const InventoryManagement = ({ user }) => {
                  onClick={() => {
                    setShowAddForm(false);
                    setEditingItem(null);
-                   setWeightError('');
-                   setDetectedGrade('');
-                   setGradeConfidence(0);
-                   setGradeDetails(null);
-                   setNewItem({
-                     name: 'Cardamom',
-                     weight: '',
-                     location: farmLocation,
-                     image: null
-                   });
+      setWeightError('');
+      setDetectedGrade('');
+      setGradeConfidence(0);
+      setGradeDetails(null);
+      setCurrentGrade('');
+      setMarkAsSold(false);
+      setNewItem({
+        name: 'Cardamom',
+        weight: '',
+        location: farmLocation,
+        image: null,
+        imageFile: null
+      });
                  }}
                  className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
                >
@@ -618,13 +903,19 @@ const InventoryManagement = ({ user }) => {
           ) : (
             <div className="divide-y divide-gray-200">
               {filteredInventory.map((item) => (
-                <div key={item.id} className="p-6 hover:bg-gray-50 transition-colors">
+                <div key={item._id || item.id} className="p-6 hover:bg-gray-50 transition-colors">
                   <div className="flex items-start space-x-4">
                     {/* Image */}
                     <div className="flex-shrink-0">
                       <img
-                        src={item.image || '/api/placeholder/100/100'}
-                        alt={item.name}
+                        src={
+                          item.spiceImage 
+                            ? (item.spiceImage.startsWith('http') 
+                                ? item.spiceImage 
+                                : `http://localhost:3001${item.spiceImage}`)
+                            : (item.image || '/api/placeholder/100/100')
+                        }
+                        alt={item.spiceName || item.name}
                         className="w-20 h-20 object-cover rounded-lg border border-gray-200"
                       />
                     </div>
@@ -634,7 +925,7 @@ const InventoryManagement = ({ user }) => {
                       <div className="flex items-start justify-between">
                         <div className="flex-1">
                           <h4 className="text-lg font-semibold text-gray-900 mb-1">
-                            {item.name}
+                            {item.spiceName || item.name}
                           </h4>
                           
                           <div className="flex flex-wrap items-center gap-4 text-sm text-gray-500">
@@ -642,11 +933,55 @@ const InventoryManagement = ({ user }) => {
                               <FaWeight className="w-4 h-4" />
                               <span>{item.weight} kg</span>
                             </span>
+                            {item.grade && (
+                              <span className="flex items-center space-x-1">
+                                <FaTag className="w-4 h-4" />
+                                <span>Grade: {item.grade}</span>
+                              </span>
+                            )}
                             <span className="flex items-center space-x-1">
                               <FaMapMarkerAlt className="w-4 h-4" />
                               <span>{item.location}</span>
                             </span>
-                            <span>Added: {item.addedDate}</span>
+                            <span>Added: {item.addedDate || item.createdAt?.split('T')[0] || 'Unknown'}</span>
+                            
+                            {/* Expected Price Display - Next to date */}
+                            {item.grade && item.weight && (() => {
+                              // Don't show price for sold items
+                              if (item.status === 'sold') {
+                                return (
+                                  <div className="px-2 py-1 bg-gray-100 border border-gray-200 rounded text-center">
+                                    <span className="text-gray-600 text-xs font-medium">
+                                      Sold
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              
+                              const priceInfo = calculateExpectedPrice(item.grade, item.weight);
+                              if (!priceInfo) return null;
+                              
+                              if (priceInfo.message) {
+                                return (
+                                  <div className="px-2 py-1 bg-red-100 border border-red-200 rounded text-center">
+                                    <span className="text-red-600 text-xs font-medium">
+                                      Under quality product
+                                    </span>
+                                  </div>
+                                );
+                              }
+                              
+                              return (
+                                <div className="px-2 py-1 bg-green-100 border border-green-200 rounded text-center">
+                                  <div className="text-green-800 font-semibold text-sm">
+                                    ₹{priceInfo.price.toLocaleString()}
+                                  </div>
+                                  <div className="text-green-600 text-xs">
+                                    ₹{priceInfo.pricePerKg}/kg
+                                  </div>
+                                </div>
+                              );
+                            })()}
                           </div>
                         </div>
 
@@ -654,7 +989,7 @@ const InventoryManagement = ({ user }) => {
                         <div className="flex flex-col items-end space-y-3">
                           <div className={`inline-flex items-center space-x-1 px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(item.status)}`}>
                             {getStatusIcon(item.status)}
-                            <span className="capitalize">{item.status.replace('_', ' ')}</span>
+                            <span className="capitalize">{(item.status || 'available').replace('_', ' ')}</span>
                           </div>
 
                           <div className="flex items-center space-x-2">
@@ -666,7 +1001,7 @@ const InventoryManagement = ({ user }) => {
                               <FaEdit className="w-4 h-4" />
                             </button>
                             <button
-                              onClick={() => handleDeleteItem(item.id)}
+                              onClick={() => handleDeleteItem(item)}
                               className="p-2 text-gray-400 hover:text-red-600 transition-colors"
                               title="Delete item"
                             >

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { FaCog, FaSignOutAlt, FaUser, FaUsers, FaChartBar, FaShieldAlt, FaLeaf, FaBuilding, FaClipboardList, FaExclamationTriangle, FaCheckCircle, FaClock, FaDollarSign, FaBell, FaEye, FaEdit, FaTrash } from 'react-icons/fa';
+import { FaCog, FaSignOutAlt, FaUser, FaUsers, FaChartBar, FaShieldAlt, FaLeaf, FaBuilding, FaClipboardList, FaExclamationTriangle, FaCheckCircle, FaClock, FaDollarSign, FaBell, FaEye, FaEdit, FaTrash, FaWeight, FaRupeeSign, FaTimesCircle, FaRobot } from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
-import { authAPI } from '../../services/api';
+import { authAPI, inventoryAPI } from '../../services/api';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
@@ -35,6 +35,8 @@ const AdminDashboard = () => {
         return <ManageFarmers />;
       case 'buyers':
         return <ManageBuyers />;
+      case 'inventory':
+        return <InventoryOversight />;
       default:
         return <AdminDashboardOverview user={user} />;
     }
@@ -44,6 +46,7 @@ const AdminDashboard = () => {
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', active: true },
     { id: 'farmers', label: 'Manage Farmers', icon: 'leaf' },
     { id: 'buyers', label: 'Manage Buyers', icon: 'building' },
+    { id: 'inventory', label: 'Inventory Oversight', icon: 'inventory' },
   ];
 
   const getIcon = (iconName) => {
@@ -55,6 +58,7 @@ const AdminDashboard = () => {
       ),
       leaf: <FaLeaf className="w-5 h-5" />,
       building: <FaBuilding className="w-5 h-5" />,
+      inventory: <FaClipboardList className="w-5 h-5" />,
       logout: (
         <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -1251,6 +1255,401 @@ const ManageBuyers = () => {
         verificationData={verificationData}
         loading={modalLoading}
       />
+    </div>
+  );
+};
+
+// Inventory Oversight Component
+const InventoryOversight = () => {
+  const [allInventory, setAllInventory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [farmerFilter, setFarmerFilter] = useState('all');
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+
+  useEffect(() => {
+    fetchAllInventory();
+  }, []);
+
+  const fetchAllInventory = async () => {
+    try {
+      setLoading(true);
+      // Fetch all farmers first to get their inventory
+      const farmersResponse = await authAPI.getAllFarmers();
+      const farmers = farmersResponse.data.farmers || [];
+      
+      // Fetch inventory for each farmer
+      const allInventoryData = [];
+      for (const farmer of farmers) {
+        try {
+          const inventoryResponse = await inventoryAPI.getInventoryByUser(farmer._id);
+          if (inventoryResponse && inventoryResponse.length > 0) {
+            const inventoryWithFarmer = inventoryResponse.map(item => ({
+              ...item,
+              farmerName: farmer.fullName,
+              farmerEmail: farmer.emailAddress,
+              farmerId: farmer._id,
+              farmerLocation: `${farmer.district}, ${farmer.state}`
+            }));
+            allInventoryData.push(...inventoryWithFarmer);
+          }
+        } catch (error) {
+          console.error(`Error fetching inventory for farmer ${farmer.fullName}:`, error);
+        }
+      }
+      
+      setAllInventory(allInventoryData);
+    } catch (error) {
+      console.error('Error fetching inventory data:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredInventory = allInventory.filter(item => {
+    const matchesSearch = (item.spiceName || item.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         (item.farmerName || '').toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesStatus = statusFilter === 'all' || (item.status || 'available') === statusFilter;
+    const matchesFarmer = farmerFilter === 'all' || item.farmerId === farmerFilter;
+    
+    return matchesSearch && matchesStatus && matchesFarmer;
+  });
+
+
+  const handleViewDetails = (item) => {
+    setSelectedItem(item);
+    setModalOpen(true);
+  };
+
+  // Calculate total inventory metrics
+  const totalWeight = allInventory.reduce((sum, item) => sum + (item.weight || 0), 0);
+  const totalValue = allInventory.reduce((sum, item) => {
+    if (item.status === 'sold' || !item.grade || !item.weight) return sum;
+    // Simple price calculation based on grade
+    let pricePerKg = 0;
+    switch (item.grade?.toUpperCase()) {
+      case 'A': pricePerKg = 2600; break;
+      case 'B': pricePerKg = 2583; break;
+      case 'C': pricePerKg = 2565; break;
+      default: pricePerKg = 2583;
+    }
+    return sum + (pricePerKg * item.weight);
+  }, 0);
+  
+  const availableItems = allInventory.filter(item => item.status === 'available').length;
+  const soldItems = allInventory.filter(item => item.status === 'sold').length;
+
+  // Get unique farmers for filter
+  const uniqueFarmers = [...new Set(allInventory.map(item => item.farmerId))]
+    .map(farmerId => {
+      const item = allInventory.find(i => i.farmerId === farmerId);
+      return { id: farmerId, name: item?.farmerName || 'Unknown' };
+    });
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading inventory data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Inventory Oversight</h1>
+          <p className="text-gray-600">View and manage all farmers' submitted stock</p>
+        </div>
+        <div className="text-sm text-gray-500">
+          Total: {allInventory.length} items from {uniqueFarmers.length} farmers
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Total Weight</p>
+              <p className="text-3xl font-bold">{totalWeight.toFixed(1)} kg</p>
+            </div>
+            <FaWeight className="w-8 h-8 text-blue-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">Total Value</p>
+              <p className="text-3xl font-bold">₹{totalValue.toLocaleString()}</p>
+            </div>
+            <FaRupeeSign className="w-8 h-8 text-green-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-emerald-100 text-sm font-medium">Available Items</p>
+              <p className="text-3xl font-bold">{availableItems}</p>
+            </div>
+            <FaCheckCircle className="w-8 h-8 text-emerald-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-gray-500 to-gray-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-gray-100 text-sm font-medium">Sold Items</p>
+              <p className="text-3xl font-bold">{soldItems}</p>
+            </div>
+            <FaTimesCircle className="w-8 h-8 text-gray-200" />
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/30 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Search</label>
+            <input
+              type="text"
+              placeholder="Search by spice name or farmer..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Status</label>
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Status</option>
+              <option value="available">Available</option>
+              <option value="sold">Sold</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Farmer</label>
+            <select
+              value={farmerFilter}
+              onChange={(e) => setFarmerFilter(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Farmers</option>
+              {uniqueFarmers.map(farmer => (
+                <option key={farmer.id} value={farmer.id}>{farmer.name}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+
+      {/* Inventory Table */}
+      <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/30 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spice</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Farmer</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Weight</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Grade</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredInventory.map((item) => (
+                <tr key={item._id || item.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="flex items-center">
+                      <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                        <FaLeaf className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div className="ml-4">
+                        <div className="text-sm font-medium text-gray-900">{item.spiceName || item.name}</div>
+                        {item.spiceImage && (
+                          <img 
+                            src={item.spiceImage.startsWith('http') ? item.spiceImage : `http://localhost:3001${item.spiceImage}`}
+                            alt={item.spiceName}
+                            className="w-8 h-8 object-cover rounded mt-1"
+                          />
+                        )}
+                      </div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">{item.farmerName}</div>
+                    <div className="text-sm text-gray-500">{item.farmerEmail}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {item.weight} kg
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      item.grade === 'A' ? 'bg-green-100 text-green-800' :
+                      item.grade === 'B' ? 'bg-blue-100 text-blue-800' :
+                      item.grade === 'C' ? 'bg-yellow-100 text-yellow-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      Grade {item.grade || 'N/A'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {item.farmerLocation}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      item.status === 'available' ? 'bg-green-100 text-green-800' :
+                      item.status === 'sold' ? 'bg-gray-100 text-gray-800' :
+                      'bg-gray-100 text-gray-800'
+                    }`}>
+                      {item.status === 'available' ? 'Available' :
+                       item.status === 'sold' ? 'Sold' :
+                       'Unknown'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button
+                      onClick={() => handleViewDetails(item)}
+                      className="text-blue-600 hover:text-blue-900"
+                    >
+                      <FaEye className="inline mr-1" />
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {filteredInventory.length === 0 && (
+          <div className="text-center py-8">
+            <FaClipboardList className="text-gray-400 text-4xl mx-auto mb-2" />
+            <p className="text-gray-500">No inventory items found</p>
+          </div>
+        )}
+      </div>
+
+      {/* Item Details Modal */}
+      {modalOpen && selectedItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Inventory Item Details</h2>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              <div className="space-y-6">
+                {/* Item Image */}
+                {selectedItem.spiceImage && (
+                  <div className="text-center">
+                    <img
+                      src={selectedItem.spiceImage.startsWith('http') ? selectedItem.spiceImage : `http://localhost:3001${selectedItem.spiceImage}`}
+                      alt={selectedItem.spiceName}
+                      className="w-32 h-32 object-cover rounded-lg mx-auto border border-gray-200"
+                    />
+                  </div>
+                )}
+
+                {/* Item Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="bg-gray-50 rounded-xl p-4">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Item Information</h3>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Spice Name</label>
+                        <p className="text-gray-900">{selectedItem.spiceName || selectedItem.name}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Weight</label>
+                        <p className="text-gray-900">{selectedItem.weight} kg</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Grade</label>
+                        <p className="text-gray-900">Grade {selectedItem.grade || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Status</label>
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                          selectedItem.status === 'available' ? 'bg-green-100 text-green-800' :
+                          selectedItem.status === 'sold' ? 'bg-gray-100 text-gray-800' :
+                          'bg-gray-100 text-gray-800'
+                        }`}>
+                          {selectedItem.status === 'available' ? 'Available' :
+                           selectedItem.status === 'sold' ? 'Sold' :
+                           'Unknown'}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-blue-50 rounded-xl p-4">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Farmer Information</h3>
+                    <div className="space-y-2">
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Name</label>
+                        <p className="text-gray-900">{selectedItem.farmerName}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Email</label>
+                        <p className="text-gray-900">{selectedItem.farmerEmail}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Location</label>
+                        <p className="text-gray-900">{selectedItem.farmerLocation}</p>
+                      </div>
+                      <div>
+                        <label className="text-sm font-medium text-gray-600">Added Date</label>
+                        <p className="text-gray-900">{selectedItem.addedDate || selectedItem.createdAt?.split('T')[0] || 'Unknown'}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* AI Quality Assessment */}
+                <div className="bg-green-50 rounded-xl p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">AI Quality Assessment</h3>
+                  <div className="flex items-center space-x-4">
+                    <div className="flex items-center space-x-2">
+                      <FaRobot className="text-green-600" />
+                      <span className="text-sm font-medium text-gray-700">Grade Detection:</span>
+                      <span className="font-bold text-green-800">Grade {selectedItem.grade || 'N/A'}</span>
+                    </div>
+                    {selectedItem.grade && (
+                      <div className="text-sm text-gray-600">
+                        Quality: {selectedItem.grade === 'A' ? 'Premium' : 
+                                 selectedItem.grade === 'B' ? 'Good' : 
+                                 selectedItem.grade === 'C' ? 'Standard' : 'Unknown'}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
