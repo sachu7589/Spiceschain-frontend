@@ -164,9 +164,6 @@ const AdminDashboard = () => {
                   <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
                     admin
                   </span>
-                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                    Verified
-                  </span>
                 </div>
               </div>
             )}
@@ -188,6 +185,19 @@ const AdminDashboard = () => {
               </p>
             </div>
             <div className="flex items-center space-x-6">
+              {/* Refresh Button */}
+              {activeMenu === 'dashboard' && (
+                <button 
+                  onClick={() => window.location.reload()}
+                  className="p-3 text-gray-400 hover:text-gray-600 transition-all duration-200 hover:bg-white/60 rounded-xl"
+                  title="Refresh Dashboard"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                </button>
+              )}
+              
               {/* Notifications */}
               <button className="relative p-3 text-gray-400 hover:text-gray-600 transition-all duration-200 hover:bg-white/60 rounded-xl">
                 <FaBell className="w-6 h-6" />
@@ -229,11 +239,50 @@ const AdminDashboard = () => {
 
 // Admin Dashboard Content Components
 const AdminDashboardOverview = ({ user }) => {
-  // User metrics data
+  const [farmers, setFarmers] = useState([]);
+  const [buyers, setBuyers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [verificationData, setVerificationData] = useState(null);
+  const [modalLoading, setModalLoading] = useState(false);
+
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const [farmersResponse, buyersResponse] = await Promise.all([
+        authAPI.getAllFarmers(),
+        authAPI.getAllBuyers()
+      ]);
+      
+      setFarmers(farmersResponse.data.farmers || []);
+      setBuyers(buyersResponse.data.buyers || []);
+    } catch (error) {
+      console.error('Error fetching dashboard data:', error);
+      setError('Failed to load dashboard data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Calculate real metrics from fetched data
+  const totalUsers = farmers.length + buyers.length;
+  const verifiedFarmers = farmers.filter(farmer => farmer.isVerified).length;
+  const verifiedBuyers = buyers.filter(buyer => buyer.isVerified).length;
+  const totalVerified = verifiedFarmers + verifiedBuyers;
+  const pendingVerificationsCount = farmers.filter(f => !f.isVerified).length + buyers.filter(b => !b.isVerified).length;
+
   const userMetrics = [
     { 
       label: 'Total Users', 
-      value: '1,247', 
+      value: totalUsers.toLocaleString(), 
       icon: FaUsers, 
       bgColor: 'from-blue-500 to-blue-600',
       iconBg: 'bg-blue-100',
@@ -241,7 +290,7 @@ const AdminDashboardOverview = ({ user }) => {
     },
     { 
       label: 'Total Farmers', 
-      value: '892', 
+      value: farmers.length.toLocaleString(), 
       icon: FaLeaf, 
       bgColor: 'from-green-500 to-green-600',
       iconBg: 'bg-green-100',
@@ -249,7 +298,7 @@ const AdminDashboardOverview = ({ user }) => {
     },
     { 
       label: 'Total Buyers', 
-      value: '355', 
+      value: buyers.length.toLocaleString(), 
       icon: FaBuilding, 
       bgColor: 'from-indigo-500 to-indigo-600',
       iconBg: 'bg-indigo-100',
@@ -257,38 +306,144 @@ const AdminDashboardOverview = ({ user }) => {
     }
   ];
 
-  // Auction details
-  const auctionDetails = [
-    { id: 'A001', product: 'Premium Turmeric', farmer: 'Rajesh Kumar', currentBid: '₹2,450/kg', timeLeft: '2h 15m', bidders: 12, status: 'active' },
-    { id: 'A002', product: 'Organic Cardamom', farmer: 'Priya Sharma', currentBid: '₹1,850/kg', timeLeft: '45m', bidders: 8, status: 'active' },
-    { id: 'A003', product: 'Black Pepper', farmer: 'Amit Patel', currentBid: '₹3,200/kg', timeLeft: '5h 30m', bidders: 15, status: 'active' },
-    { id: 'A004', product: 'Cinnamon Sticks', farmer: 'Suresh Reddy', currentBid: '₹1,200/kg', timeLeft: 'Ended', bidders: 6, status: 'completed' }
-  ];
+  // Get recent registrations (last 5 from both farmers and buyers)
+  const getRecentRegistrations = () => {
+    const allUsers = [
+      ...farmers.map(farmer => ({
+        id: farmer._id,
+        name: farmer.fullName,
+        type: 'Farmer',
+        email: farmer.emailAddress,
+        registered: farmer.createdAt,
+        status: farmer.isVerified ? 'verified' : 'pending'
+      })),
+      ...buyers.map(buyer => ({
+        id: buyer._id,
+        name: buyer.fullName,
+        type: 'Buyer',
+        email: buyer.emailAddress,
+        registered: buyer.createdAt,
+        status: buyer.isVerified ? 'verified' : 'pending'
+      }))
+    ];
+    
+    return allUsers
+      .sort((a, b) => new Date(b.registered) - new Date(a.registered))
+      .slice(0, 5)
+      .map(user => ({
+        ...user,
+        registered: getTimeAgo(new Date(user.registered))
+      }));
+  };
 
-  // Recent registrations
-  const recentRegistrations = [
-    { id: 'F001', name: 'Vikram Singh', type: 'Farmer', email: 'vikram@example.com', registered: '2 hours ago', status: 'verified' },
-    { id: 'B001', name: 'Neha Gupta', type: 'Buyer', email: 'neha@example.com', registered: '4 hours ago', status: 'verified' },
-    { id: 'F002', name: 'Arjun Mehta', type: 'Farmer', email: 'arjun@example.com', registered: '6 hours ago', status: 'pending' },
-    { id: 'B002', name: 'Kavya Nair', type: 'Buyer', email: 'kavya@example.com', registered: '1 day ago', status: 'verified' },
-    { id: 'F003', name: 'Rohit Verma', type: 'Farmer', email: 'rohit@example.com', registered: '1 day ago', status: 'pending' }
-  ];
+  // Get pending verifications
+  const getPendingVerifications = () => {
+    const unverifiedFarmers = farmers
+      .filter(farmer => !farmer.isVerified)
+      .map(farmer => ({
+        id: farmer._id,
+        name: farmer.fullName,
+        email: farmer.emailAddress,
+        phone: farmer.contactNumber,
+        type: 'Farmer',
+        submitted: getTimeAgo(new Date(farmer.createdAt)),
+        status: 'pending',
+        documents: 'Aadhaar, Land Certificate',
+        userData: farmer
+      }));
 
-  // Pending verifications
-  const pendingVerifications = [
-    { id: 'V001', name: 'Rajesh Kumar', type: 'Farmer', submitted: '2 hours ago', status: 'pending', documents: 'Aadhaar, Land Certificate' },
-    { id: 'V002', name: 'Priya Sharma', type: 'Buyer', submitted: '4 hours ago', status: 'pending', documents: 'PAN, Business License' },
-    { id: 'V003', name: 'Amit Patel', type: 'Farmer', submitted: '6 hours ago', status: 'under_review', documents: 'Aadhaar, Bank Statement' },
-    { id: 'V004', name: 'Suresh Reddy', type: 'Buyer', submitted: '1 day ago', status: 'pending', documents: 'GST Certificate, PAN' }
-  ];
+    const unverifiedBuyers = buyers
+      .filter(buyer => !buyer.isVerified)
+      .map(buyer => ({
+        id: buyer._id,
+        name: buyer.fullName,
+        email: buyer.emailAddress,
+        phone: buyer.contactNumber,
+        type: 'Buyer',
+        submitted: getTimeAgo(new Date(buyer.createdAt)),
+        status: 'pending',
+        documents: 'PAN, Business License',
+        userData: buyer
+      }));
 
-  // System stats
+    return [...unverifiedFarmers, ...unverifiedBuyers]
+      .sort((a, b) => new Date(b.submitted) - new Date(a.submitted))
+      .slice(0, 4);
+  };
+
+  // Helper function to get time ago
+  const getTimeAgo = (date) => {
+    const now = new Date();
+    const diffInHours = Math.floor((now - date) / (1000 * 60 * 60));
+    
+    if (diffInHours < 1) return 'Just now';
+    if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 7) return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+    
+    const diffInWeeks = Math.floor(diffInDays / 7);
+    return `${diffInWeeks} week${diffInWeeks > 1 ? 's' : ''} ago`;
+  };
+
+  // System stats with real data
   const systemStats = [
-    { label: 'Active Auctions', value: '12', icon: FaChartBar, color: 'blue' },
-    { label: 'Pending Verifications', value: '8', icon: FaShieldAlt, color: 'orange' },
-    { label: 'Total Revenue', value: '₹2.4M', icon: FaDollarSign, color: 'green' },
-    { label: 'Platform Uptime', value: '99.9%', icon: FaCheckCircle, color: 'purple' }
+    { label: 'Verified Users', value: totalVerified.toLocaleString(), icon: FaCheckCircle, color: 'green' },
+    { label: 'Pending Verifications', value: pendingVerificationsCount.toLocaleString(), icon: FaShieldAlt, color: 'orange' },
+    { label: 'Total Farmers', value: farmers.length.toLocaleString(), icon: FaLeaf, color: 'green' },
+    { label: 'Total Buyers', value: buyers.length.toLocaleString(), icon: FaBuilding, color: 'blue' }
   ];
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading dashboard data...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Data</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={fetchDashboardData}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const handleViewClick = async (verification) => {
+    setSelectedUser(verification.userData);
+    setModalOpen(true);
+    setVerificationData(null);
+    
+    if (verification.userData.isVerified) {
+      try {
+        setModalLoading(true);
+        const response = await authAPI.getAadhaarVerification(verification.userData._id);
+        setVerificationData(response.data.verification);
+      } catch (error) {
+        console.error('Error fetching Aadhaar verification:', error);
+        setVerificationData('API_ERROR');
+      } finally {
+        setModalLoading(false);
+      }
+    }
+  };
+
+  const recentRegistrations = getRecentRegistrations();
+  const pendingVerifications = getPendingVerifications();
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -347,35 +502,121 @@ const AdminDashboardOverview = ({ user }) => {
         })}
       </div>
 
-      {/* Main Content Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Active Auctions */}
-        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
-          <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-gray-900">Active Auctions</h3>
-            <button className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-              View All
-            </button>
-          </div>
-          <div className="space-y-4">
-            {auctionDetails.map((auction) => (
-              <div key={auction.id} className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
-                <div className="flex items-center justify-between mb-2">
-                  <h4 className="font-semibold text-gray-900">{auction.product}</h4>
-                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(auction.status)}`}>
-                    {auction.status}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between text-sm text-gray-600">
-                  <span>Farmer: {auction.farmer}</span>
-                  <span>{auction.bidders} bidders</span>
-                </div>
-                <div className="flex items-center justify-between mt-2">
-                  <span className="text-lg font-bold text-green-600">{auction.currentBid}</span>
-                  <span className="text-sm text-gray-500">{auction.timeLeft}</span>
+      {/* Verification Status */}
+      <div className="space-y-6 mb-8">
+        <h3 className="text-xl font-bold text-gray-900">Verification Status</h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Verified Users Card */}
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-6 hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 rounded-xl bg-green-100">
+                <FaCheckCircle className="text-2xl text-green-600" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-lg font-semibold text-gray-900">Verified Users</h4>
+                <p className="text-3xl font-bold text-green-600 mt-1">{totalVerified}</p>
+                <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
+                  <span>Farmers: {verifiedFarmers}</span>
+                  <span>Buyers: {verifiedBuyers}</span>
                 </div>
               </div>
-            ))}
+            </div>
+          </div>
+
+          {/* Pending Verification Card */}
+          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-6 hover:shadow-xl transition-all duration-300">
+            <div className="flex items-center space-x-4">
+              <div className="p-3 rounded-xl bg-yellow-100">
+                <FaShieldAlt className="text-2xl text-yellow-600" />
+              </div>
+              <div className="flex-1">
+                <h4 className="text-lg font-semibold text-gray-900">Pending Verification</h4>
+                <p className="text-3xl font-bold text-yellow-600 mt-1">{pendingVerificationsCount}</p>
+                <div className="flex items-center space-x-4 mt-2 text-sm text-gray-600">
+                  <span>Farmers: {farmers.filter(f => !f.isVerified).length}</span>
+                  <span>Buyers: {buyers.filter(b => !b.isVerified).length}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+        {/* Auction Details */}
+        <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold text-gray-900">Active Auctions</h3>
+          </div>
+          <div className="space-y-4">
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold text-gray-900">Premium Turmeric</h4>
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  Active
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>Farmer: Rajesh Kumar</span>
+                <span>12 bidders</span>
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-lg font-bold text-green-600">₹2,450/kg</span>
+                <span className="text-sm text-gray-500">2h 15m left</span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold text-gray-900">Organic Cardamom</h4>
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  Active
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>Farmer: Priya Sharma</span>
+                <span>8 bidders</span>
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-lg font-bold text-green-600">₹1,850/kg</span>
+                <span className="text-sm text-gray-500">45m left</span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold text-gray-900">Black Pepper</h4>
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                  Active
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>Farmer: Amit Patel</span>
+                <span>15 bidders</span>
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-lg font-bold text-green-600">₹3,200/kg</span>
+                <span className="text-sm text-gray-500">5h 30m left</span>
+              </div>
+            </div>
+
+            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="font-semibold text-gray-900">Cinnamon Sticks</h4>
+                <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                  Completed
+                </span>
+              </div>
+              <div className="flex items-center justify-between text-sm text-gray-600">
+                <span>Farmer: Suresh Reddy</span>
+                <span>6 bidders</span>
+              </div>
+              <div className="flex items-center justify-between mt-2">
+                <span className="text-lg font-bold text-green-600">₹1,200/kg</span>
+                <span className="text-sm text-gray-500">Ended</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -383,9 +624,6 @@ const AdminDashboardOverview = ({ user }) => {
         <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
           <div className="flex items-center justify-between mb-6">
             <h3 className="text-xl font-bold text-gray-900">Recent Registrations</h3>
-            <button className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-              View All
-            </button>
           </div>
           <div className="space-y-4">
             {recentRegistrations.map((registration) => (
@@ -416,28 +654,24 @@ const AdminDashboardOverview = ({ user }) => {
       <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-xl font-bold text-gray-900">Pending Verifications</h3>
-          <button className="bg-orange-500 hover:bg-orange-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
-            Review All
-          </button>
         </div>
         <div className="overflow-x-auto">
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">ID</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Documents</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Submitted</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {pendingVerifications.map((verification) => (
                 <tr key={verification.id} className="hover:bg-gray-50">
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-mono text-gray-900">{verification.id}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{verification.name}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{verification.email}</td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{verification.phone}</td>
                   <td className="px-6 py-4 whitespace-nowrap">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       verification.type === 'Farmer' 
@@ -447,33 +681,22 @@ const AdminDashboardOverview = ({ user }) => {
                       {verification.type}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">{verification.documents}</td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{verification.submitted}</td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(verification.status)}`}>
-                      {verification.status.replace('_', ' ')}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button className="text-blue-600 hover:text-blue-900 mr-3">
-                      <FaEye className="inline mr-1" />
-                      Review
-                    </button>
-                    <button className="text-green-600 hover:text-green-900 mr-3">
-                      <FaCheckCircle className="inline mr-1" />
-                      Approve
-                    </button>
-                    <button className="text-red-600 hover:text-red-900">
-                      <FaTrash className="inline mr-1" />
-                      Reject
-                    </button>
-                  </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       </div>
+
+      {/* Aadhaar Modal */}
+      <AadhaarModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        user={selectedUser}
+        verificationData={verificationData}
+        loading={modalLoading}
+      />
     </div>
   );
 };

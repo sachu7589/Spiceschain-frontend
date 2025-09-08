@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import InventoryManagement from './InventoryManagement';
+import { spicePricesAPI, weatherAPI, locationAPI } from '../services/api';
 
 const FarmerDashboard = () => {
   const { user, logout } = useAuth();
@@ -28,11 +30,19 @@ const FarmerDashboard = () => {
   };
 
   const renderDashboardContent = () => {
-    return <FarmerDashboardOverview user={user} navigate={navigate} />;
+    switch (activeMenu) {
+      case 'dashboard':
+        return <FarmerDashboardOverview user={user} navigate={navigate} />;
+      case 'inventory':
+        return <InventoryManagement user={user} />;
+      default:
+        return <FarmerDashboardOverview user={user} navigate={navigate} />;
+    }
   };
 
   const menuItems = [
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', active: true },
+    { id: 'inventory', label: 'Inventory', icon: 'inventory', active: false },
   ];
 
   const getIcon = (iconName) => {
@@ -40,6 +50,11 @@ const FarmerDashboard = () => {
       grid: (
         <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
+        </svg>
+      ),
+      inventory: (
+        <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
         </svg>
       ),
       logout: (
@@ -246,20 +261,280 @@ const FarmerDashboard = () => {
   );
 };
 
+// Weather Component
+const WeatherWidget = ({ user }) => {
+  const [weatherData, setWeatherData] = useState(null);
+  const [locationData, setLocationData] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [locationLoading, setLocationLoading] = useState(false);
+  const [error, setError] = useState(null);
+
+  // Get pincode from user profile data
+  const pincode = user?.pincode || user?.address?.pincode || user?.location?.pincode;
+  
+  // Debug: Log pincode for troubleshooting
+  console.log('WeatherWidget - User object:', user);
+  console.log('WeatherWidget - Pincode:', pincode);
+
+  const fetchLocation = async (pin) => {
+    if (!pin || pin.length !== 6) return;
+    
+    setLocationLoading(true);
+    
+    try {
+      // Try real API first, fallback to mock data
+      const data = await locationAPI.getLocationFromPincode(pin);
+      if (data) {
+        setLocationData(data);
+      } else {
+        // Fallback to mock data
+        const mockData = await locationAPI.getMockLocation(pin);
+        setLocationData(mockData);
+      }
+    } catch (err) {
+      console.error('Error fetching location:', err);
+      // Fallback to mock data on error
+      try {
+        const mockData = await locationAPI.getMockLocation(pin);
+        setLocationData(mockData);
+      } catch (mockErr) {
+        console.error('Error fetching mock location:', mockErr);
+      }
+    } finally {
+      setLocationLoading(false);
+    }
+  };
+
+  const fetchWeather = async (pin) => {
+    if (!pin || pin.length !== 6) return;
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Using mock data for development (replace with real API call)
+      const data = await weatherAPI.getMockWeather(pin);
+      setWeatherData(data);
+    } catch (err) {
+      console.error('Error fetching weather:', err);
+      setError('Failed to fetch weather data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Auto-fetch location and weather when component mounts or pincode changes
+  useEffect(() => {
+    if (pincode) {
+      fetchLocation(pincode);
+      fetchWeather(pincode);
+    }
+  }, [pincode]);
+
+  const getWeatherIcon = (weatherMain) => {
+    const icons = {
+      'Clear': '☀️',
+      'Clouds': '☁️',
+      'Rain': '🌧️',
+      'Thunderstorm': '⛈️',
+      'Snow': '❄️',
+      'Mist': '🌫️',
+      'Fog': '🌫️'
+    };
+    return icons[weatherMain] || '🌤️';
+  };
+
+  const getWindDirection = (degrees) => {
+    const directions = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
+    return directions[Math.round(degrees / 22.5) % 16];
+  };
+
+  return (
+    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-6 border border-blue-200 shadow-sm">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-lg font-semibold text-gray-900 flex items-center">
+          <span className="mr-2">🌤️</span>
+          Weather Updates
+        </h3>
+        <div className="flex items-center space-x-2">
+          {pincode ? (
+            <div className="text-sm text-gray-600">
+              {locationData ? (
+                <div>
+                  <span className="font-medium">📍</span> {locationData.city}, {locationData.district || locationData.state}
+                  <div className="text-xs text-gray-500 mt-1">Pincode: {pincode}</div>
+                </div>
+              ) : locationLoading ? (
+                <div className="flex items-center space-x-2">
+                  <span className="animate-spin">⟳</span>
+                  <span>Loading location...</span>
+                </div>
+              ) : (
+                <div>
+                  <span className="font-medium">Pincode:</span> {pincode}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="text-sm text-amber-600 bg-amber-50 px-3 py-1 rounded-lg">
+              ⚠️ No pincode in profile
+            </div>
+          )}
+          {loading && (
+            <div className="text-sm text-blue-600">
+              <span className="animate-spin">⟳</span> Loading weather...
+            </div>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <div className="text-red-600 text-sm mb-4 p-3 bg-red-50 rounded-lg">
+          {error}
+        </div>
+      )}
+
+      {weatherData ? (
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          {/* Main Weather Info */}
+          <div className="md:col-span-2 bg-white rounded-lg p-4 shadow-sm">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-2xl font-bold text-gray-900">
+                  {weatherData.main.temp}°C
+                </h4>
+                <p className="text-gray-600 text-sm">
+                  Feels like {weatherData.main.feels_like}°C
+                </p>
+                <p className="text-gray-500 text-sm capitalize">
+                  {weatherData.weather[0].description}
+                </p>
+                <p className="text-gray-500 text-sm">
+                  {locationData ? `${locationData.city}, ${locationData.district || locationData.state}` : weatherData.name}
+                </p>
+              </div>
+              <div className="text-6xl">
+                {getWeatherIcon(weatherData.weather[0].main)}
+              </div>
+            </div>
+          </div>
+
+          {/* Weather Details */}
+          <div className="bg-white rounded-lg p-4 shadow-sm">
+            <h5 className="font-semibold text-gray-900 mb-3">Details</h5>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Humidity</span>
+                <span className="font-medium">{weatherData.main.humidity}%</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Pressure</span>
+                <span className="font-medium">{weatherData.main.pressure} hPa</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Visibility</span>
+                <span className="font-medium">{Math.round(weatherData.visibility / 1000)} km</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Wind Info */}
+          <div className="bg-white rounded-lg p-4 shadow-sm">
+            <h5 className="font-semibold text-gray-900 mb-3">Wind</h5>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Speed</span>
+                <span className="font-medium">{weatherData.wind.speed} m/s</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Direction</span>
+                <span className="font-medium">{getWindDirection(weatherData.wind.deg)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Sunrise</span>
+                <span className="font-medium">
+                  {new Date(weatherData.sys.sunrise * 1000).toLocaleTimeString('en-IN', { 
+                    hour: '2-digit', 
+                    minute: '2-digit' 
+                  })}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="text-center py-8 text-gray-500">
+          <div className="text-4xl mb-2">🌤️</div>
+          <p>
+            {pincode 
+              ? 'Loading weather data...' 
+              : 'Add pincode to your profile to get weather updates'
+            }
+          </p>
+        </div>
+      )}
+    </div>
+  );
+};
+
 // Farmer Dashboard Content Components
 const FarmerDashboardOverview = ({ user, navigate }) => {
   const isVerified = user?.isVerified || false;
+  const [cardamomData, setCardamomData] = useState(null);
+  const [latestPrice, setLatestPrice] = useState(null);
+  const [dailyPrices, setDailyPrices] = useState([]);
 
-  // Farmer-specific data
-  const dailyPrices = [
-    { day: 'Mon', price: 3100 },
-    { day: 'Tue', price: 3150 },
-    { day: 'Wed', price: 3080 },
-    { day: 'Thu', price: 3200 },
-    { day: 'Fri', price: 3250 },
-    { day: 'Sat', price: 3180 },
-    { day: 'Sun', price: 3200 },
-  ];
+  // Fetch cardamom data from API
+  useEffect(() => {
+    const fetchCardamomData = async () => {
+      try {
+        console.log('Fetching cardamom data...');
+        const [allData, latestData, statsData, dailyData] = await Promise.all([
+          spicePricesAPI.getAllCardamomData(),
+          spicePricesAPI.getLatestCardamomPrice(),
+          spicePricesAPI.getStatistics(),
+          spicePricesAPI.getDailyCardamomPrices(6)
+        ]);
+        
+        console.log('Raw API responses:');
+        console.log('All data:', allData);
+        console.log('Latest price:', latestData);
+        console.log('Stats:', statsData);
+        console.log('Processed daily prices:', dailyData);
+        
+        setCardamomData(allData);
+        setLatestPrice(latestData);
+        setDailyPrices(dailyData || []);
+        
+        // Log the processed daily prices for debugging
+        if (dailyData && dailyData.length > 0) {
+          console.log('Daily prices for chart:', dailyData.map(d => ({
+            day: d.day,
+            price: d.price,
+            date: d.date
+          })));
+        }
+      } catch (err) {
+        console.error('Error fetching cardamom data:', err);
+        // Fallback to mock data
+        setLatestPrice({ avg_amount: 2583.275, min_amount: 2565.8, max_amount: 2600.75 });
+        // Generate mock daily prices as fallback
+        const mockDailyPrices = [
+          { day: 'Mon', price: 2400, avg_amount: 2400 },
+          { day: 'Tue', price: 2450, avg_amount: 2450 },
+          { day: 'Wed', price: 2480, avg_amount: 2480 },
+          { day: 'Thu', price: 2500, avg_amount: 2500 },
+          { day: 'Fri', price: 2475, avg_amount: 2475 },
+          { day: 'Sat', price: 2490, avg_amount: 2490 },
+          { day: 'Sun', price: 2450, avg_amount: 2450 },
+        ];
+        setDailyPrices(mockDailyPrices);
+        console.log('Using fallback mock data:', mockDailyPrices);
+      }
+    };
+
+    fetchCardamomData();
+  }, []);
 
   const ongoingAuctions = [
     { id: 'A001', spice: 'Cardamom (Green)', quantity: '50kg', currentBid: '₹3,200', timeLeft: '2h 15m', bidders: 8 },
@@ -274,17 +549,12 @@ const FarmerDashboardOverview = ({ user, navigate }) => {
     { id: 4, type: 'weather', title: 'Weather alert', message: 'Heavy rain expected in your area', time: '5h ago', unread: false },
   ];
 
-  const weatherData = {
-    location: 'Kerala, India',
-    temperature: '28°C',
-    condition: 'Partly Cloudy',
-    humidity: '78%',
-    windSpeed: '12 km/h',
-    forecast: 'Heavy rain expected in 2 days'
-  };
 
   return (
     <div className="space-y-8">
+      {/* Weather Updates */}
+      <WeatherWidget user={user} />
+
       {/* Cardamom Price Overview - Kerala Only */}
       <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
         <div className="flex items-center justify-between mb-6">
@@ -292,143 +562,242 @@ const FarmerDashboardOverview = ({ user, navigate }) => {
           <span className="text-sm text-gray-500">Updated 2 minutes ago</span>
         </div>
         
-        {/* Current Price */}
-        <div className="bg-gradient-to-br from-gray-50 to-gray-100 rounded-xl p-6 border border-gray-200 mb-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600">Kerala</p>
-              <p className="text-3xl font-bold text-gray-900">₹3,200</p>
+
+        {/* Cardamom Statistics */}
+        {cardamomData && (
+          <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm mb-6">
+            <h4 className="text-lg font-semibold text-gray-900 mb-4">Cardamom Market Statistics</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-gradient-to-r from-green-50 to-emerald-50 rounded-lg p-4 border border-green-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-green-600">Average Price</p>
+                    <p className="text-2xl font-bold text-green-800">
+                      ₹{cardamomData.avg_amount || latestPrice?.avg_amount || '2,583.275'}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 border border-blue-200">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-blue-600">Price Range</p>
+                    <p className="text-lg font-bold text-blue-800">
+                      ₹{cardamomData.min_amount || latestPrice?.min_amount || '2,565.8'} - ₹{cardamomData.max_amount || latestPrice?.max_amount || '2,600.75'}
+                    </p>
+                  </div>
+                  <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
+                    <svg className="w-6 h-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                    </svg>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="flex items-center space-x-1 text-green-600">
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 17l9.2-9.2M17 17V7H7" />
-              </svg>
-              <span className="text-lg font-semibold">+5.2%</span>
+          </div>
+        )}
+
+        {/* Modern SAAS-style Line Chart */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+          {/* Chart Header */}
+          <div className="px-6 py-4 border-b border-gray-100">
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-lg font-semibold text-gray-900">Cardamom Price Trend</h4>
+                <p className="text-sm text-gray-500 mt-1">
+                  {dailyPrices.length > 0 
+                    ? `Last ${dailyPrices.length} day${dailyPrices.length !== 1 ? 's' : ''} performance`
+                    : 'Last 6 days performance'
+                  }
+                </p>
+              </div>
+              <div className="flex items-center space-x-4">
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span className="text-sm text-gray-600">Price (₹)</span>
+                </div>
+                <div className="flex items-center space-x-2">
+                  <div className="w-3 h-0.5 bg-red-500" style={{borderTop: '2px dashed #ef4444'}}></div>
+                  <span className="text-sm text-gray-600">Average</span>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm text-gray-500">Current</div>
+                  <div className="text-lg font-semibold text-gray-900">
+                    ₹{dailyPrices.length > 0 ? dailyPrices[dailyPrices.length - 1]?.price || dailyPrices[dailyPrices.length - 1]?.avg_amount || '2,500' : '2,500'}
+                  </div>
+                </div>
+              </div>
             </div>
+          </div>
+
+          {/* Chart Container */}
+          <div className="p-6">
+            {dailyPrices.length > 0 ? (
+              <div className="h-80 relative pb-8">
+                {/* Custom Line Chart */}
+                <div className="w-full h-full relative">
+                  {/* Calculate price range for dynamic scaling */}
+                  {(() => {
+                    const prices = dailyPrices.map(d => d.price || d.avg_amount || 0);
+                    const minPrice = Math.min(...prices);
+                    const maxPrice = Math.max(...prices);
+                    const priceRange = maxPrice - minPrice;
+                    const padding = priceRange * 0.1; // 10% padding
+                    const chartMin = minPrice - padding;
+                    const chartMax = maxPrice + padding;
+                    const chartRange = chartMax - chartMin;
+                    
+                    // Calculate average price for the line
+                    const averagePrice = prices.reduce((sum, price) => sum + price, 0) / prices.length;
+
+                    return (
+                      <>
+                        {/* Grid Lines */}
+                        <div className="absolute inset-0 flex flex-col justify-between">
+                          {[0, 1, 2, 3, 4].map((_, i) => (
+                            <div key={i} className="h-px bg-gray-100"></div>
+                          ))}
+                        </div>
+                        
+                        {/* Y-axis labels */}
+                        <div className="absolute left-0 top-0 h-full flex flex-col justify-between text-xs text-gray-500">
+                          <span>₹{Math.round(chartMax).toLocaleString()}</span>
+                          <span>₹{Math.round(chartMin + chartRange * 0.75).toLocaleString()}</span>
+                          <span>₹{Math.round(chartMin + chartRange * 0.5).toLocaleString()}</span>
+                          <span>₹{Math.round(chartMin + chartRange * 0.25).toLocaleString()}</span>
+                          <span>₹{Math.round(chartMin).toLocaleString()}</span>
+                        </div>
+
+                        {/* Chart Area */}
+                        <div className="ml-12 mr-4 h-full relative">
+                          {/* Area under the curve */}
+                          <div className="absolute inset-0">
+                            <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                              <defs>
+                                <linearGradient id="areaGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                                  <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.1"/>
+                                  <stop offset="100%" stopColor="#3b82f6" stopOpacity="0.02"/>
+                                </linearGradient>
+                              </defs>
+                              <path
+                                d={`M 0,${100 - ((prices[0] - chartMin) / chartRange) * 100} ${dailyPrices.map((data, index) => {
+                                  const x = dailyPrices.length > 1 ? (index / (dailyPrices.length - 1)) * 100 : 50;
+                                  const y = 100 - ((prices[index] - chartMin) / chartRange) * 100;
+                                  return `L ${x},${y}`;
+                                }).join(' ')} L 100,100 L 0,100 Z`}
+                                fill="url(#areaGradient)"
+                              />
+                            </svg>
+                          </div>
+
+                          {/* Average Price Line */}
+                          <div className="absolute inset-0">
+                            <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                              <line
+                                x1="0"
+                                y1={100 - ((averagePrice - chartMin) / chartRange) * 100}
+                                x2="100"
+                                y2={100 - ((averagePrice - chartMin) / chartRange) * 100}
+                                stroke="#ef4444"
+                                strokeWidth="0.3"
+                                strokeDasharray="2,2"
+                                opacity="0.8"
+                              />
+                            </svg>
+                          </div>
+
+                          {/* Main Price Line */}
+                          <div className="absolute inset-0">
+                            <svg className="w-full h-full" viewBox="0 0 100 100" preserveAspectRatio="none">
+                              <path
+                                d={`M 0,${100 - ((prices[0] - chartMin) / chartRange) * 100} ${dailyPrices.map((data, index) => {
+                                  const x = dailyPrices.length > 1 ? (index / (dailyPrices.length - 1)) * 100 : 50;
+                                  const y = 100 - ((prices[index] - chartMin) / chartRange) * 100;
+                                  return `L ${x},${y}`;
+                                }).join(' ')}`}
+                                fill="none"
+                                stroke="#3b82f6"
+                                strokeWidth="0.5"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                              />
+                            </svg>
+                          </div>
+
+                          {/* Data Points */}
+                          {dailyPrices.map((data, index) => {
+                            const x = dailyPrices.length > 1 ? (index / (dailyPrices.length - 1)) * 100 : 50;
+                            const y = 100 - ((prices[index] - chartMin) / chartRange) * 100;
+                            
+                            return (
+                              <div key={index} className="absolute group">
+                                {/* Hover area */}
+                                <div 
+                                  className="absolute w-8 h-8 -ml-4 -mt-4 cursor-pointer"
+                                  style={{ left: `${x}%`, top: `${y}%` }}
+                                >
+                                  {/* Tooltip */}
+                                  <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-3 py-2 bg-gray-900 text-white text-xs rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                                    <div className="font-semibold">{data.day}</div>
+                                    <div className="text-gray-300">
+                                      {new Date(data.date).toLocaleDateString('en-IN', { 
+                                        day: '2-digit', 
+                                        month: 'short', 
+                                        year: 'numeric' 
+                                      })}
+                                    </div>
+                                    <div>₹{(data.price || data.avg_amount || 0).toLocaleString()}</div>
+                                    <div className="absolute top-full left-1/2 transform -translate-x-1/2 w-0 h-0 border-l-2 border-r-2 border-t-2 border-transparent border-t-gray-900"></div>
+                                  </div>
+                                </div>
+                                
+                                {/* Data point */}
+                                <div 
+                                  className="absolute w-2 h-2 bg-blue-500 rounded-full border-2 border-white shadow-lg transform -translate-x-1/2 -translate-y-1/2 group-hover:scale-125 transition-transform duration-200"
+                                  style={{ left: `${x}%`, top: `${y}%` }}
+                                ></div>
+                              </div>
+                            );
+                          })}
+                        </div>
+
+                        {/* Day and Date labels below the chart */}
+                        <div className="absolute -bottom-8 left-12 right-4 flex justify-between text-xs">
+                          {dailyPrices.map((data, index) => (
+                            <div key={index} className="text-center">
+                              <div className="font-medium text-gray-500 mb-1">{data.day}</div>
+                              <div className="text-xs text-gray-400">
+                                {new Date(data.date).toLocaleDateString('en-IN', { 
+                                  day: '2-digit', 
+                                  month: 'short' 
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    );
+                  })()}
+                </div>
+              </div>
+            ) : (
+              <div className="h-80 flex items-center justify-center text-gray-500">
+                <div className="text-center">
+                  <div className="text-4xl mb-2">📊</div>
+                  <p>Loading chart data...</p>
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
 
-        {/* Daily Price Chart */}
-        <div className="bg-white rounded-xl p-6 border border-gray-200 shadow-sm">
-          <h4 className="text-lg font-semibold text-gray-900 mb-4">7-Day Price Trend</h4>
-          <div className="h-80 relative">
-            <svg className="w-full h-full" viewBox="0 0 500 200" preserveAspectRatio="none">
-              {/* Chart area */}
-              <defs>
-                <linearGradient id="priceGradient" x1="0%" y1="0%" x2="0%" y2="100%">
-                  <stop offset="0%" stopColor="#10b981" stopOpacity="0.1"/>
-                  <stop offset="100%" stopColor="#10b981" stopOpacity="0.05"/>
-                </linearGradient>
-              </defs>
-              
-              {/* Grid lines */}
-              <g stroke="#e5e7eb" strokeWidth="1" opacity="0.5">
-                {/* Horizontal grid lines */}
-                <line x1="50" y1="30" x2="450" y2="30"/>
-                <line x1="50" y1="80" x2="450" y2="80"/>
-                <line x1="50" y1="130" x2="450" y2="130"/>
-                <line x1="50" y1="180" x2="450" y2="180"/>
-                
-                {/* Vertical grid lines */}
-                {dailyPrices.map((_, index) => {
-                  const x = 50 + (index * 400) / (dailyPrices.length - 1);
-                  return <line key={index} x1={x} y1="30" x2={x} y2="180"/>;
-                })}
-              </g>
-              
-              {/* Y-axis */}
-              <line x1="50" y1="30" x2="50" y2="180" stroke="#374151" strokeWidth="2"/>
-              
-              {/* X-axis */}
-              <line x1="50" y1="180" x2="450" y2="180" stroke="#374151" strokeWidth="2"/>
-              
-              {/* Price area fill */}
-              <polygon
-                fill="url(#priceGradient)"
-                points={[
-                  `50,180`,
-                  ...dailyPrices.map((data, index) => {
-                    const maxPrice = Math.max(...dailyPrices.map(d => d.price));
-                    const minPrice = Math.min(...dailyPrices.map(d => d.price));
-                    const priceRange = maxPrice - minPrice;
-                    const x = 50 + (index * 400) / (dailyPrices.length - 1);
-                    const y = 180 - ((data.price - minPrice) / priceRange) * 150;
-                    return `${x},${y}`;
-                  }),
-                  `450,180`
-                ].join(' ')}
-              />
-              
-              {/* Price line */}
-              <polyline
-                fill="none"
-                stroke="#10b981"
-                strokeWidth="3"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                points={dailyPrices.map((data, index) => {
-                  const maxPrice = Math.max(...dailyPrices.map(d => d.price));
-                  const minPrice = Math.min(...dailyPrices.map(d => d.price));
-                  const priceRange = maxPrice - minPrice;
-                  const x = 50 + (index * 400) / (dailyPrices.length - 1);
-                  const y = 180 - ((data.price - minPrice) / priceRange) * 150;
-                  return `${x},${y}`;
-                }).join(' ')}
-              />
-              
-              {/* Data points */}
-              {dailyPrices.map((data, index) => {
-                const maxPrice = Math.max(...dailyPrices.map(d => d.price));
-                const minPrice = Math.min(...dailyPrices.map(d => d.price));
-                const priceRange = maxPrice - minPrice;
-                const x = 50 + (index * 400) / (dailyPrices.length - 1);
-                const y = 180 - ((data.price - minPrice) / priceRange) * 150;
-                return (
-                  <g key={index}>
-                    <circle
-                      cx={x}
-                      cy={y}
-                      r="5"
-                      fill="#10b981"
-                      stroke="#ffffff"
-                      strokeWidth="2"
-                    />
-                    <text
-                      x={x}
-                      y={y - 15}
-                      textAnchor="middle"
-                      className="text-xs fill-gray-700 font-semibold"
-                    >
-                      ₹{data.price}
-                    </text>
-                  </g>
-                );
-              })}
-              
-              {/* Y-axis labels */}
-              <text x="45" y="35" textAnchor="end" className="text-xs fill-gray-600 font-medium">₹3,250</text>
-              <text x="45" y="85" textAnchor="end" className="text-xs fill-gray-600 font-medium">₹3,165</text>
-              <text x="45" y="135" textAnchor="end" className="text-xs fill-gray-600 font-medium">₹3,100</text>
-              <text x="45" y="185" textAnchor="end" className="text-xs fill-gray-600 font-medium">₹3,080</text>
-              
-              {/* X-axis labels */}
-              {dailyPrices.map((data, index) => {
-                const x = 50 + (index * 400) / (dailyPrices.length - 1);
-                return (
-                  <text
-                    key={index}
-                    x={x}
-                    y="195"
-                    textAnchor="middle"
-                    className="text-xs fill-gray-600 font-medium"
-                  >
-                    {data.day}
-                  </text>
-                );
-              })}
-            </svg>
-          </div>
-        </div>
       </div>
 
       {/* Blurred Sections Container with Verify Button Overlay */}
@@ -503,40 +872,8 @@ const FarmerDashboardOverview = ({ user, navigate }) => {
           </div>
         </div>
 
-        {/* Weather Updates and Quick Links - Blurred if not verified */}
-        <div className={`grid grid-cols-1 lg:grid-cols-2 gap-8 mt-8 ${!isVerified ? 'blur-sm pointer-events-none' : ''}`}>
-          {/* Weather Updates */}
-          <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
-            <h3 className="text-xl font-bold text-gray-900 mb-6">Weather Updates</h3>
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-100 rounded-xl p-6">
-              <div className="flex items-center justify-between mb-4">
-                <div>
-                  <p className="text-sm text-gray-600">Farm Location</p>
-                  <p className="font-semibold text-gray-900">{weatherData.location}</p>
-                </div>
-                <div className="text-right">
-                  <p className="text-3xl font-bold text-gray-900">{weatherData.temperature}</p>
-                  <p className="text-sm text-gray-600">{weatherData.condition}</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="text-center">
-                  <p className="text-sm text-gray-600">Humidity</p>
-                  <p className="font-semibold text-gray-900">{weatherData.humidity}</p>
-                </div>
-                <div className="text-center">
-                  <p className="text-sm text-gray-600">Wind Speed</p>
-                  <p className="font-semibold text-gray-900">{weatherData.windSpeed}</p>
-                </div>
-              </div>
-              <div className="bg-yellow-100 border border-yellow-200 rounded-lg p-3">
-                <p className="text-sm text-yellow-800">
-                  <span className="font-semibold">Forecast:</span> {weatherData.forecast}
-                </p>
-              </div>
-            </div>
-          </div>
-
+        {/* Quick Links - Blurred if not verified */}
+        <div className={`mt-8 ${!isVerified ? 'blur-sm pointer-events-none' : ''}`}>
           {/* Quick Links */}
           <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
             <h3 className="text-xl font-bold text-gray-900 mb-6">Quick Links</h3>
@@ -594,3 +931,4 @@ const FarmerDashboardOverview = ({ user, navigate }) => {
 };
 
 export default FarmerDashboard;
+
