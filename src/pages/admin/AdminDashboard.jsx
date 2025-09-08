@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { FaCog, FaSignOutAlt, FaUser, FaUsers, FaChartBar, FaShieldAlt, FaLeaf, FaBuilding, FaClipboardList, FaExclamationTriangle, FaCheckCircle, FaClock, FaDollarSign, FaBell, FaEye, FaEdit, FaTrash, FaWeight, FaRupeeSign, FaTimesCircle, FaRobot } from 'react-icons/fa';
+import { FaCog, FaSignOutAlt, FaUser, FaUsers, FaChartBar, FaShieldAlt, FaLeaf, FaBuilding, FaClipboardList, FaExclamationTriangle, FaCheckCircle, FaClock, FaDollarSign, FaBell, FaEye, FaEdit, FaTrash, FaWeight, FaRupeeSign, FaTimesCircle, FaRobot, FaGavel, FaTrophy, FaHistory, FaChartLine } from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
 import { authAPI, inventoryAPI } from '../../services/api';
 
@@ -30,23 +30,34 @@ const AdminDashboard = () => {
   const renderDashboardContent = () => {
     switch (activeMenu) {
       case 'dashboard':
-        return <AdminDashboardOverview user={user} />;
+        return <AdminDashboardOverview />;
       case 'farmers':
         return <ManageFarmers />;
       case 'buyers':
         return <ManageBuyers />;
       case 'inventory':
         return <InventoryOversight />;
+      case 'auction-management':
+        return <AuctionManagement onMenuClick={handleMenuClick} />;
+      case 'create-auction':
+        return <CreateAuction />;
+      case 'ongoing-auctions':
+        return <OngoingAuctions />;
+      case 'auction-results':
+        return <AuctionResults />;
+      case 'auction-history':
+        return <AuctionHistory />;
       default:
         return <AdminDashboardOverview user={user} />;
     }
   };
 
   const menuItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: 'grid', active: true },
+    { id: 'dashboard', label: 'Dashboard', icon: 'grid' },
     { id: 'farmers', label: 'Manage Farmers', icon: 'leaf' },
     { id: 'buyers', label: 'Manage Buyers', icon: 'building' },
     { id: 'inventory', label: 'Inventory Oversight', icon: 'inventory' },
+    { id: 'auction-management', label: 'Auction Management', icon: 'gavel' },
   ];
 
   const getIcon = (iconName) => {
@@ -59,6 +70,7 @@ const AdminDashboard = () => {
       leaf: <FaLeaf className="w-5 h-5" />,
       building: <FaBuilding className="w-5 h-5" />,
       inventory: <FaClipboardList className="w-5 h-5" />,
+      gavel: <FaGavel className="w-5 h-5" />,
       logout: (
         <svg className="w-5 h-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
@@ -103,28 +115,34 @@ const AdminDashboard = () => {
 
         {/* Navigation Menu */}
         <nav className={`${sidebarCollapsed ? 'p-4' : 'p-6'} space-y-2`}>
-          {menuItems.map((item) => (
-            <button
-              key={item.id}
-              onClick={() => item.action ? item.action() : handleMenuClick(item.id)}
-              className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-4'} ${sidebarCollapsed ? 'px-2 py-3' : 'px-4 py-3'} rounded-xl transition-all duration-200 group ${
-                activeMenu === item.id
-                  ? 'bg-blue-50 text-blue-800 border border-blue-200 shadow-sm'
-                  : 'text-gray-600 hover:bg-white/80 hover:text-gray-900 hover:shadow-md'
-              }`}
-            >
-              <span className={`flex-shrink-0 ${sidebarCollapsed ? 'p-2' : 'p-2'} rounded-lg transition-all duration-200 ${
-                activeMenu === item.id
-                  ? 'bg-blue-100 text-blue-700 shadow-sm'
-                  : 'bg-gray-100 group-hover:bg-blue-50 group-hover:shadow-sm'
-              }`}>
-                {getIcon(item.icon)}
-              </span>
-              {!sidebarCollapsed && (
-                <span className="text-sm font-medium">{item.label}</span>
-              )}
-            </button>
-          ))}
+          {menuItems.map((item) => {
+            // Check if current menu should be active
+            const isActive = activeMenu === item.id || 
+              (item.id === 'auction-management' && ['create-auction', 'ongoing-auctions', 'auction-results', 'auction-history'].includes(activeMenu));
+            
+            return (
+              <button
+                key={item.id}
+                onClick={() => item.action ? item.action() : handleMenuClick(item.id)}
+                className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-4'} ${sidebarCollapsed ? 'px-2 py-3' : 'px-4 py-3'} rounded-xl transition-all duration-200 group ${
+                  isActive
+                    ? 'bg-blue-50 text-blue-800 border border-blue-200 shadow-sm'
+                    : 'text-gray-600 hover:bg-white/80 hover:text-gray-900 hover:shadow-md'
+                }`}
+              >
+                <span className={`flex-shrink-0 ${sidebarCollapsed ? 'p-2' : 'p-2'} rounded-lg transition-all duration-200 ${
+                  isActive
+                    ? 'bg-blue-100 text-blue-700 shadow-sm'
+                    : 'bg-gray-100 group-hover:bg-blue-50 group-hover:shadow-sm'
+                }`}>
+                  {getIcon(item.icon)}
+                </span>
+                {!sidebarCollapsed && (
+                  <span className="text-sm font-medium">{item.label}</span>
+                )}
+              </button>
+            );
+          })}
         </nav>
 
         {/* User Profile and Logout */}
@@ -242,15 +260,11 @@ const AdminDashboard = () => {
 };
 
 // Admin Dashboard Content Components
-const AdminDashboardOverview = ({ user }) => {
+const AdminDashboardOverview = () => {
   const [farmers, setFarmers] = useState([]);
   const [buyers, setBuyers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [verificationData, setVerificationData] = useState(null);
-  const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -277,38 +291,11 @@ const AdminDashboardOverview = ({ user }) => {
   };
 
   // Calculate real metrics from fetched data
-  const totalUsers = farmers.length + buyers.length;
   const verifiedFarmers = farmers.filter(farmer => farmer.isVerified).length;
   const verifiedBuyers = buyers.filter(buyer => buyer.isVerified).length;
   const totalVerified = verifiedFarmers + verifiedBuyers;
   const pendingVerificationsCount = farmers.filter(f => !f.isVerified).length + buyers.filter(b => !b.isVerified).length;
 
-  const userMetrics = [
-    { 
-      label: 'Total Users', 
-      value: totalUsers.toLocaleString(), 
-      icon: FaUsers, 
-      bgColor: 'from-blue-500 to-blue-600',
-      iconBg: 'bg-blue-100',
-      iconColor: 'text-blue-600'
-    },
-    { 
-      label: 'Total Farmers', 
-      value: farmers.length.toLocaleString(), 
-      icon: FaLeaf, 
-      bgColor: 'from-green-500 to-green-600',
-      iconBg: 'bg-green-100',
-      iconColor: 'text-green-600'
-    },
-    { 
-      label: 'Total Buyers', 
-      value: buyers.length.toLocaleString(), 
-      icon: FaBuilding, 
-      bgColor: 'from-indigo-500 to-indigo-600',
-      iconBg: 'bg-indigo-100',
-      iconColor: 'text-indigo-600'
-    }
-  ];
 
   // Get recent registrations (last 5 from both farmers and buyers)
   const getRecentRegistrations = () => {
@@ -427,24 +414,6 @@ const AdminDashboardOverview = ({ user }) => {
     );
   }
 
-  const handleViewClick = async (verification) => {
-    setSelectedUser(verification.userData);
-    setModalOpen(true);
-    setVerificationData(null);
-    
-    if (verification.userData.isVerified) {
-      try {
-        setModalLoading(true);
-        const response = await authAPI.getAadhaarVerification(verification.userData._id);
-        setVerificationData(response.data.verification);
-      } catch (error) {
-        console.error('Error fetching Aadhaar verification:', error);
-        setVerificationData('API_ERROR');
-      } finally {
-        setModalLoading(false);
-      }
-    }
-  };
 
   const recentRegistrations = getRecentRegistrations();
   const pendingVerifications = getPendingVerifications();
@@ -468,23 +437,6 @@ const AdminDashboardOverview = ({ user }) => {
 
   return (
     <div className="space-y-8">
-      {/* Main Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {userMetrics.map((metric, index) => {
-          const IconComponent = metric.icon;
-          return (
-            <div key={index} className={`bg-gradient-to-br ${metric.bgColor} rounded-xl shadow-lg p-6 text-white hover:shadow-xl transition-all duration-300 hover:-translate-y-1 hover:scale-102`}>
-              <div className="text-center">
-                <div className={`inline-flex items-center justify-center w-12 h-12 ${metric.iconBg} rounded-xl mb-4 shadow-md`}>
-                  <IconComponent className={`text-2xl ${metric.iconColor}`} />
-                </div>
-                <h3 className="text-xl font-bold mb-1">{metric.value}</h3>
-                <p className="text-sm text-white/90 font-medium">{metric.label}</p>
-              </div>
-            </div>
-          );
-        })}
-      </div>
 
       {/* System Stats */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -693,14 +645,6 @@ const AdminDashboardOverview = ({ user }) => {
         </div>
       </div>
 
-      {/* Aadhaar Modal */}
-      <AadhaarModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        user={selectedUser}
-        verificationData={verificationData}
-        loading={modalLoading}
-      />
     </div>
   );
 };
@@ -858,10 +802,6 @@ const ManageFarmers = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [verificationFilter, setVerificationFilter] = useState('all');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [verificationData, setVerificationData] = useState(null);
-  const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
     fetchFarmers();
@@ -895,25 +835,6 @@ const ManageFarmers = () => {
     return new Date(dateString).toLocaleDateString('en-IN');
   };
 
-  const handleViewClick = async (farmer) => {
-    setSelectedUser(farmer);
-    setModalOpen(true);
-    setVerificationData(null);
-    
-    if (farmer.isVerified) {
-      try {
-        setModalLoading(true);
-        const response = await authAPI.getAadhaarVerification(farmer._id);
-        setVerificationData(response.data.verification);
-      } catch (error) {
-        console.error('Error fetching Aadhaar verification:', error);
-        // Set a special error state to show API error message
-        setVerificationData('API_ERROR');
-      } finally {
-        setModalLoading(false);
-      }
-    }
-  };
 
   if (loading) {
     return (
@@ -1020,13 +941,7 @@ const ManageFarmers = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button 
-                      onClick={() => handleViewClick(farmer)}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      <FaEye className="inline mr-1" />
-                      View
-                    </button>
+                    <span className="text-gray-400">-</span>
                   </td>
                 </tr>
               ))}
@@ -1041,14 +956,6 @@ const ManageFarmers = () => {
         )}
       </div>
 
-      {/* Aadhaar Modal */}
-      <AadhaarModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        user={selectedUser}
-        verificationData={verificationData}
-        loading={modalLoading}
-      />
     </div>
   );
 };
@@ -1059,10 +966,6 @@ const ManageBuyers = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [verificationFilter, setVerificationFilter] = useState('all');
-  const [modalOpen, setModalOpen] = useState(false);
-  const [selectedUser, setSelectedUser] = useState(null);
-  const [verificationData, setVerificationData] = useState(null);
-  const [modalLoading, setModalLoading] = useState(false);
 
   useEffect(() => {
     fetchBuyers();
@@ -1097,25 +1000,6 @@ const ManageBuyers = () => {
     return new Date(dateString).toLocaleDateString('en-IN');
   };
 
-  const handleViewClick = async (buyer) => {
-    setSelectedUser(buyer);
-    setModalOpen(true);
-    setVerificationData(null);
-    
-    if (buyer.isVerified) {
-      try {
-        setModalLoading(true);
-        const response = await authAPI.getAadhaarVerification(buyer._id);
-        setVerificationData(response.data.verification);
-      } catch (error) {
-        console.error('Error fetching Aadhaar verification:', error);
-        // Set a special error state to show API error message
-        setVerificationData('API_ERROR');
-      } finally {
-        setModalLoading(false);
-      }
-    }
-  };
 
   if (loading) {
     return (
@@ -1226,13 +1110,7 @@ const ManageBuyers = () => {
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button 
-                      onClick={() => handleViewClick(buyer)}
-                      className="text-blue-600 hover:text-blue-900"
-                    >
-                      <FaEye className="inline mr-1" />
-                      View
-                    </button>
+                    <span className="text-gray-400">-</span>
                   </td>
                 </tr>
               ))}
@@ -1247,14 +1125,6 @@ const ManageBuyers = () => {
         )}
       </div>
 
-      {/* Aadhaar Modal */}
-      <AadhaarModal
-        isOpen={modalOpen}
-        onClose={() => setModalOpen(false)}
-        user={selectedUser}
-        verificationData={verificationData}
-        loading={modalLoading}
-      />
     </div>
   );
 };
@@ -1266,8 +1136,6 @@ const InventoryOversight = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [farmerFilter, setFarmerFilter] = useState('all');
-  const [selectedItem, setSelectedItem] = useState(null);
-  const [modalOpen, setModalOpen] = useState(false);
 
   useEffect(() => {
     fetchAllInventory();
@@ -1319,8 +1187,7 @@ const InventoryOversight = () => {
 
 
   const handleViewDetails = (item) => {
-    setSelectedItem(item);
-    setModalOpen(true);
+    console.log('View details for item:', item);
   };
 
   // Calculate total inventory metrics
@@ -1544,13 +1411,340 @@ const InventoryOversight = () => {
         )}
       </div>
 
-      {/* Item Details Modal */}
-      {modalOpen && selectedItem && (
+    </div>
+  );
+};
+
+// Auction Management Components
+const AuctionManagement = ({ onMenuClick }) => {
+  const [upcomingAuctions, setUpcomingAuctions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedAuction, setSelectedAuction] = useState(null);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [editFormData, setEditFormData] = useState({
+    description: '',
+    incrementValue: ''
+  });
+
+  const subMenus = [
+    { id: 'create-auction', label: 'Create Auction', icon: FaGavel, description: 'Set spice type, schedule, minimum bid price, and rules' },
+    { id: 'ongoing-auctions', label: 'Ongoing Auctions', icon: FaClock, description: 'Monitor live bids and intervene if needed' },
+    { id: 'auction-results', label: 'Auction Results', icon: FaTrophy, description: 'View winners and settlement status' },
+    { id: 'auction-history', label: 'Auction History & Reports', icon: FaHistory, description: 'All past auctions with analytics' },
+  ];
+
+  useEffect(() => {
+    fetchUpcomingAuctions();
+  }, []);
+
+  const fetchUpcomingAuctions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch('http://localhost:3002/api/auctions');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch auctions');
+      }
+      
+      const data = await response.json();
+      
+      // Filter upcoming auctions (status: upcoming or start date in future)
+      const upcoming = data.filter(auction => {
+        const now = new Date();
+        const startDateTime = new Date(auction.startDate);
+        return auction.status === 'upcoming' || startDateTime > now;
+      });
+      
+      setUpcomingAuctions(upcoming);
+    } catch (error) {
+      console.error('Error fetching upcoming auctions:', error);
+      setError('Failed to load upcoming auctions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const formatDateTime = (dateString, timeString) => {
+    // Parse the date string directly without timezone conversion
+    const date = new Date(dateString);
+    const time = timeString || '00:00';
+    const [hours, minutes] = time.split(':');
+    
+    // Create a new date with the correct date and time
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    const day = date.getUTCDate();
+    
+    const localDate = new Date(year, month, day, parseInt(hours), parseInt(minutes));
+    
+    return localDate.toLocaleDateString('en-IN', {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const getTimeUntilStart = (startDate, startTime) => {
+    const now = new Date();
+    const date = new Date(startDate);
+    const [hours, minutes] = (startTime || '00:00').split(':');
+    
+    // Create a new date with the correct date and time (UTC to local)
+    const year = date.getUTCFullYear();
+    const month = date.getUTCMonth();
+    const day = date.getUTCDate();
+    
+    const startDateTime = new Date(year, month, day, parseInt(hours), parseInt(minutes));
+    
+    const diff = startDateTime - now;
+    
+    if (diff <= 0) return 'Starting soon';
+    
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hoursLeft = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const minutesLeft = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (days > 0) {
+      return `${days}d ${hoursLeft}h`;
+    } else if (hoursLeft > 0) {
+      return `${hoursLeft}h ${minutesLeft}m`;
+    } else {
+      return `${minutesLeft}m`;
+    }
+  };
+
+  const handleViewDetails = (auction) => {
+    setSelectedAuction(auction);
+    setModalOpen(true);
+  };
+
+  const handleEditAuction = (auction) => {
+    setSelectedAuction(auction);
+    setEditFormData({
+      description: auction.description || '',
+      incrementValue: auction.incrementValue || ''
+    });
+    setEditModalOpen(true);
+    setModalOpen(false); // Close details modal if open
+  };
+
+  const handleDeleteAuction = async (auction) => {
+    if (confirm(`Are you sure you want to delete the auction "${auction.auctionTitle}"?`)) {
+      try {
+        const response = await fetch(`http://localhost:3002/api/auctions/${auction._id}`, {
+          method: 'DELETE'
+        });
+        
+        if (response.ok) {
+          alert('Auction deleted successfully!');
+          fetchUpcomingAuctions(); // Refresh the list
+        } else {
+          throw new Error('Failed to delete auction');
+        }
+      } catch (error) {
+        console.error('Error deleting auction:', error);
+        alert('Error deleting auction. Please try again.');
+      }
+    }
+  };
+
+  const handleEditFormChange = (e) => {
+    const { name, value } = e.target;
+    setEditFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!selectedAuction) return;
+
+    try {
+      const response = await fetch(`http://localhost:3002/api/auctions/${selectedAuction._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          description: editFormData.description,
+          incrementValue: parseInt(editFormData.incrementValue)
+        })
+      });
+
+      if (response.ok) {
+        alert('Auction updated successfully!');
+        setEditModalOpen(false);
+        fetchUpcomingAuctions(); // Refresh the list
+      } else {
+        throw new Error('Failed to update auction');
+      }
+    } catch (error) {
+      console.error('Error updating auction:', error);
+      alert('Error updating auction. Please try again.');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Auction Management</h1>
+          <p className="text-gray-600">Manage spice auctions, monitor bids, and track results</p>
+        </div>
+      </div>
+
+      {/* Sub-menu Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {subMenus.map((menu) => {
+          const IconComponent = menu.icon;
+          return (
+            <button
+              key={menu.id}
+              onClick={() => onMenuClick(menu.id)}
+              className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8 hover:shadow-xl transition-all duration-300 hover:-translate-y-1 text-left group"
+            >
+              <div className="flex items-start space-x-4">
+                <div className="p-4 rounded-xl bg-blue-100 group-hover:bg-blue-200 transition-colors">
+                  <IconComponent className="w-8 h-8 text-blue-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-gray-900 mb-2">{menu.label}</h3>
+                  <p className="text-gray-600 text-sm leading-relaxed">{menu.description}</p>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+
+      {/* Upcoming Auctions Section */}
+      <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Upcoming Auctions</h2>
+            <p className="text-gray-600">Auctions scheduled to start soon</p>
+          </div>
+          <button
+            onClick={fetchUpcomingAuctions}
+            className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+          >
+            Refresh
+          </button>
+        </div>
+
+        {loading ? (
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            <span className="ml-2 text-gray-600">Loading upcoming auctions...</span>
+          </div>
+        ) : error ? (
+          <div className="text-center py-8">
+            <div className="text-red-500 text-4xl mb-2">⚠️</div>
+            <p className="text-gray-600 mb-4">{error}</p>
+            <button
+              onClick={fetchUpcomingAuctions}
+              className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+            >
+              Retry
+            </button>
+          </div>
+        ) : upcomingAuctions.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {upcomingAuctions.map((auction) => (
+              <div key={auction._id || auction.id} className="bg-gray-50 rounded-xl p-6 border border-gray-200 hover:shadow-md transition-shadow">
+                <div className="flex items-start justify-between mb-4">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-1">{auction.auctionTitle}</h3>
+                    <p className="text-sm text-gray-600 mb-2">{auction.description}</p>
+                    <div className="flex items-center space-x-2">
+                      <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
+                        {auction.spiceType}
+                      </span>
+                      <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs font-medium rounded-full">
+                        {auction.status}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Starts:</span>
+                    <span className="font-medium">{formatDateTime(auction.startDate, auction.startTime)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Ends:</span>
+                    <span className="font-medium">{formatDateTime(auction.endDate, auction.endTime)}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Increment:</span>
+                    <span className="font-medium text-green-600">₹{auction.incrementValue}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Time until start:</span>
+                    <span className="font-medium text-orange-600">{getTimeUntilStart(auction.startDate, auction.startTime)}</span>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <div className="flex items-center justify-between">
+                    <button
+                      onClick={() => handleViewDetails(auction)}
+                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors mr-2"
+                    >
+                      View Details
+                    </button>
+                    <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleEditAuction(auction)}
+                        className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                        title="Edit Auction"
+                      >
+                        <FaEdit className="w-4 h-4" />
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAuction(auction)}
+                        className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                        title="Delete Auction"
+                      >
+                        <FaTrash className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8">
+            <FaClock className="text-gray-400 text-4xl mx-auto mb-2" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-1">No Upcoming Auctions</h3>
+            <p className="text-gray-600">There are no auctions scheduled to start soon.</p>
+          </div>
+        )}
+      </div>
+
+      {/* Auction Details Modal */}
+      {modalOpen && selectedAuction && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
             <div className="p-6">
+              {/* Header */}
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold text-gray-900">Inventory Item Details</h2>
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Auction Details</h2>
+                  <p className="text-gray-600">{selectedAuction.auctionTitle}</p>
+                </div>
                 <button
                   onClick={() => setModalOpen(false)}
                   className="text-gray-400 hover:text-gray-600 text-2xl"
@@ -1559,97 +1753,1229 @@ const InventoryOversight = () => {
                 </button>
               </div>
 
-              <div className="space-y-6">
-                {/* Item Image */}
-                {selectedItem.spiceImage && (
-                  <div className="text-center">
-                    <img
-                      src={selectedItem.spiceImage.startsWith('http') ? selectedItem.spiceImage : `http://localhost:3001${selectedItem.spiceImage}`}
-                      alt={selectedItem.spiceName}
-                      className="w-32 h-32 object-cover rounded-lg mx-auto border border-gray-200"
-                    />
-                  </div>
-                )}
-
-                {/* Item Details */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Basic Information */}
+                <div className="space-y-6">
                   <div className="bg-gray-50 rounded-xl p-4">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Item Information</h3>
-                    <div className="space-y-2">
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">Spice Name</label>
-                        <p className="text-gray-900">{selectedItem.spiceName || selectedItem.name}</p>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Auction Title:</span>
+                        <span className="font-medium">{selectedAuction.auctionTitle}</span>
                       </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">Weight</label>
-                        <p className="text-gray-900">{selectedItem.weight} kg</p>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Spice Type:</span>
+                        <span className="font-medium">{selectedAuction.spiceType}</span>
                       </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">Grade</label>
-                        <p className="text-gray-900">Grade {selectedItem.grade || 'N/A'}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">Status</label>
-                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          selectedItem.status === 'available' ? 'bg-green-100 text-green-800' :
-                          selectedItem.status === 'sold' ? 'bg-gray-100 text-gray-800' :
-                          'bg-gray-100 text-gray-800'
-                        }`}>
-                          {selectedItem.status === 'available' ? 'Available' :
-                           selectedItem.status === 'sold' ? 'Sold' :
-                           'Unknown'}
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Status:</span>
+                        <span className="px-2 py-1 bg-orange-100 text-orange-800 text-sm font-medium rounded-full">
+                          {selectedAuction.status}
                         </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Increment Value:</span>
+                        <span className="font-medium text-green-600">₹{selectedAuction.incrementValue}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Current Bid:</span>
+                        <span className="font-medium text-blue-600">₹{selectedAuction.currentBid || 0}</span>
                       </div>
                     </div>
                   </div>
 
                   <div className="bg-blue-50 rounded-xl p-4">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-3">Farmer Information</h3>
-                    <div className="space-y-2">
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">Name</label>
-                        <p className="text-gray-900">{selectedItem.farmerName}</p>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Schedule</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Start Date:</span>
+                        <span className="font-medium">{formatDateTime(selectedAuction.startDate, selectedAuction.startTime)}</span>
                       </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">Email</label>
-                        <p className="text-gray-900">{selectedItem.farmerEmail}</p>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">End Date:</span>
+                        <span className="font-medium">{formatDateTime(selectedAuction.endDate, selectedAuction.endTime)}</span>
                       </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">Location</label>
-                        <p className="text-gray-900">{selectedItem.farmerLocation}</p>
-                      </div>
-                      <div>
-                        <label className="text-sm font-medium text-gray-600">Added Date</label>
-                        <p className="text-gray-900">{selectedItem.addedDate || selectedItem.createdAt?.split('T')[0] || 'Unknown'}</p>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Time Until Start:</span>
+                        <span className="font-medium text-orange-600">{getTimeUntilStart(selectedAuction.startDate, selectedAuction.startTime)}</span>
                       </div>
                     </div>
                   </div>
                 </div>
 
-                {/* AI Quality Assessment */}
-                <div className="bg-green-50 rounded-xl p-4">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-3">AI Quality Assessment</h3>
-                  <div className="flex items-center space-x-4">
-                    <div className="flex items-center space-x-2">
-                      <FaRobot className="text-green-600" />
-                      <span className="text-sm font-medium text-gray-700">Grade Detection:</span>
-                      <span className="font-bold text-green-800">Grade {selectedItem.grade || 'N/A'}</span>
-                    </div>
-                    {selectedItem.grade && (
-                      <div className="text-sm text-gray-600">
-                        Quality: {selectedItem.grade === 'A' ? 'Premium' : 
-                                 selectedItem.grade === 'B' ? 'Good' : 
-                                 selectedItem.grade === 'C' ? 'Standard' : 'Unknown'}
+                {/* Additional Information */}
+                <div className="space-y-6">
+                  <div className="bg-green-50 rounded-xl p-4">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Description</h3>
+                    <p className="text-gray-700">{selectedAuction.description}</p>
+                  </div>
+
+                  <div className="bg-purple-50 rounded-xl p-4">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Blockchain Information</h3>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-gray-600 text-sm">Blockchain Hash:</span>
+                        <p className="font-mono text-xs bg-gray-100 p-2 rounded mt-1 break-all">
+                          {selectedAuction.blockchainHash || 'Not available'}
+                        </p>
                       </div>
-                    )}
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Created:</span>
+                        <span className="font-medium text-sm">
+                          {new Date(selectedAuction.createdAt).toLocaleDateString('en-IN')}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-yellow-50 rounded-xl p-4">
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Auction Statistics</h3>
+                    <div className="space-y-3">
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Winner:</span>
+                        <span className="font-medium">{selectedAuction.winner || 'Not determined'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-600">Total Bids:</span>
+                        <span className="font-medium">{selectedAuction.totalBids || 0}</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
+              </div>
 
+              {/* Footer Actions */}
+              <div className="flex justify-end space-x-4 mt-6 pt-6 border-t border-gray-200">
+                <button
+                  onClick={() => handleEditAuction(selectedAuction)}
+                  className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center space-x-2"
+                >
+                  <FaEdit className="w-4 h-4" />
+                  <span>Edit Auction</span>
+                </button>
+                <button
+                  onClick={() => handleDeleteAuction(selectedAuction)}
+                  className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center space-x-2"
+                >
+                  <FaTrash className="w-4 h-4" />
+                  <span>Delete Auction</span>
+                </button>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                >
+                  Close
+                </button>
               </div>
             </div>
           </div>
         </div>
       )}
+
+      {/* Edit Auction Modal */}
+      {editModalOpen && selectedAuction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              {/* Header */}
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-2xl font-bold text-gray-900">Edit Auction</h2>
+                  <p className="text-gray-600">{selectedAuction.auctionTitle}</p>
+                </div>
+                <button
+                  onClick={() => setEditModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600 text-2xl"
+                >
+                  ×
+                </button>
+              </div>
+
+              {/* Edit Form */}
+              <form onSubmit={handleEditSubmit} className="space-y-6">
+                <div className="grid grid-cols-1 gap-6">
+                  {/* Description Field */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      name="description"
+                      value={editFormData.description}
+                      onChange={handleEditFormChange}
+                      rows={4}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
+                      placeholder="Enter auction description..."
+                      required
+                    />
+                  </div>
+
+                  {/* Increment Value Field */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Increment Value (₹)
+                    </label>
+                    <input
+                      type="number"
+                      name="incrementValue"
+                      value={editFormData.incrementValue}
+                      onChange={handleEditFormChange}
+                      min="1"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Enter minimum bid increment..."
+                      required
+                    />
+                  </div>
+                </div>
+
+                {/* Read-only Information */}
+                <div className="bg-gray-50 rounded-xl p-4">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-3">Auction Information (Read-only)</h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-600">Auction Title:</span>
+                      <p className="font-medium">{selectedAuction.auctionTitle}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Spice Type:</span>
+                      <p className="font-medium">{selectedAuction.spiceType}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">Start Date:</span>
+                      <p className="font-medium">{formatDateTime(selectedAuction.startDate, selectedAuction.startTime)}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-600">End Date:</span>
+                      <p className="font-medium">{formatDateTime(selectedAuction.endDate, selectedAuction.endTime)}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Footer Actions */}
+                <div className="flex justify-end space-x-4 pt-6 border-t border-gray-200">
+                  <button
+                    type="button"
+                    onClick={() => setEditModalOpen(false)}
+                    className="px-6 py-2 bg-gray-500 hover:bg-gray-600 text-white rounded-lg transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center space-x-2"
+                  >
+                    <FaEdit className="w-4 h-4" />
+                    <span>Update Auction</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Create Auction Component
+const CreateAuction = () => {
+  const [formData, setFormData] = useState({
+    spiceType: 'Cardamom',
+    title: '',
+    description: '',
+    startDate: '',
+    endDate: '',
+    startTime: '',
+    endTime: '',
+    incrementValue: ''
+  });
+
+  const [errors, setErrors] = useState({});
+  const [loading, setLoading] = useState(false);
+
+  const spiceTypes = ['Cardamom']; // Only Cardamom for first phase
+
+  // Get tomorrow's date
+  const getTomorrowDate = () => {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    return tomorrow.toISOString().split('T')[0];
+  };
+
+  // Get maximum end date (3 days after start date)
+  const getMaxEndDate = (startDate) => {
+    if (!startDate) return '';
+    const maxDate = new Date(startDate);
+    maxDate.setDate(maxDate.getDate() + 3);
+    return maxDate.toISOString().split('T')[0];
+  };
+
+  // Validation functions
+  const validateField = (name, value) => {
+    const newErrors = { ...errors };
+    
+    switch (name) {
+      case 'title':
+        if (!value.trim()) {
+          newErrors.title = 'Auction title is required';
+        } else if (value.trim().length < 5) {
+          newErrors.title = 'Title must be at least 5 characters';
+        } else {
+          delete newErrors.title;
+        }
+        break;
+        
+      case 'description':
+        if (!value.trim()) {
+          newErrors.description = 'Description is required';
+        } else if (value.trim().length < 10) {
+          newErrors.description = 'Description must be at least 10 characters';
+        } else {
+          delete newErrors.description;
+        }
+        break;
+        
+      case 'startDate':
+        if (!value) {
+          newErrors.startDate = 'Start date is required';
+        } else {
+          const tomorrow = getTomorrowDate();
+          if (value < tomorrow) {
+            newErrors.startDate = 'Start date must be tomorrow or later';
+          } else {
+            delete newErrors.startDate;
+          }
+        }
+        break;
+        
+      case 'endDate':
+        if (!value) {
+          newErrors.endDate = 'End date is required';
+        } else if (formData.startDate && value < formData.startDate) {
+          newErrors.endDate = 'End date cannot be before start date';
+        } else if (formData.startDate) {
+          const maxDate = getMaxEndDate(formData.startDate);
+          if (value > maxDate) {
+            newErrors.endDate = 'End date cannot be more than 3 days after start date';
+          } else {
+            delete newErrors.endDate;
+          }
+        } else {
+          delete newErrors.endDate;
+        }
+        break;
+        
+      case 'startTime':
+        if (!value) {
+          newErrors.startTime = 'Start time is required';
+        } else {
+          delete newErrors.startTime;
+        }
+        break;
+        
+      case 'endTime':
+        if (!value) {
+          newErrors.endTime = 'End time is required';
+        } else if (formData.startDate === formData.endDate && formData.startTime && value <= formData.startTime) {
+          newErrors.endTime = 'End time must be after start time';
+        } else {
+          delete newErrors.endTime;
+        }
+        break;
+        
+      case 'incrementValue':
+        if (!value) {
+          newErrors.incrementValue = 'Increment value is required';
+        } else if (isNaN(value) || parseFloat(value) <= 0) {
+          newErrors.incrementValue = 'Increment value must be a positive number';
+        } else if (parseFloat(value) < 10) {
+          newErrors.incrementValue = 'Increment value must be at least ₹10';
+        } else {
+          delete newErrors.incrementValue;
+        }
+        break;
+        
+      default:
+        break;
+    }
+    
+    setErrors(newErrors);
+  };
+
+  const handleBlur = (e) => {
+    const { name, value } = e.target;
+    validateField(name, value);
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    
+    // Clear error when user starts typing
+    if (errors[name]) {
+      const newErrors = { ...errors };
+      delete newErrors[name];
+      setErrors(newErrors);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    
+    try {
+      // Validate all fields before submission
+      const requiredFields = ['title', 'description', 'startDate', 'endDate', 'startTime', 'endTime', 'incrementValue'];
+      let hasErrors = false;
+      
+      requiredFields.forEach(field => {
+        if (!formData[field]) {
+          validateField(field, formData[field]);
+          hasErrors = true;
+        }
+      });
+      
+      if (hasErrors) {
+        setLoading(false);
+        return;
+      }
+
+      // Prepare data for API call
+      const auctionData = {
+        spiceType: formData.spiceType,
+        auctionTitle: formData.title,
+        startDate: formData.startDate,
+        startTime: formData.startTime,
+        endDate: formData.endDate,
+        endTime: formData.endTime,
+        incrementValue: parseInt(formData.incrementValue),
+        description: formData.description
+      };
+
+      console.log('Creating auction:', auctionData);
+
+      // Make API call to create auction
+      const response = await fetch('http://localhost:3002/api/auctions/create', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(auctionData)
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to create auction');
+      }
+
+      const result = await response.json();
+      console.log('Auction created successfully:', result);
+      
+      alert('Auction created successfully!');
+      setFormData({
+        spiceType: 'Cardamom',
+        title: '',
+        description: '',
+        startDate: '',
+        endDate: '',
+        startTime: '',
+        endTime: '',
+        incrementValue: ''
+      });
+      setErrors({});
+    } catch (error) {
+      console.error('Error creating auction:', error);
+      alert(`Error creating auction: ${error.message}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Create Auction</h1>
+          <p className="text-gray-600">Set up a new spice auction with all necessary details</p>
+        </div>
+      </div>
+
+      {/* Form */}
+      <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Spice Type */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Spice Type *</label>
+              <select
+                name="spiceType"
+                value={formData.spiceType}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                required
+              >
+                {spiceTypes.map(spice => (
+                  <option key={spice} value={spice}>{spice}</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Auction Title */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Auction Title *</label>
+              <input
+                type="text"
+                name="title"
+                value={formData.title}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                placeholder="e.g., Premium Cardamom - Grade A"
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  errors.title ? 'border-red-500' : 'border-gray-300'
+                }`}
+                required
+              />
+              {errors.title && (
+                <p className="mt-1 text-sm text-red-600">{errors.title}</p>
+              )}
+            </div>
+
+            {/* Start Date & Time */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Start Date *</label>
+              <input
+                type="date"
+                name="startDate"
+                value={formData.startDate}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                min={getTomorrowDate()}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  errors.startDate ? 'border-red-500' : 'border-gray-300'
+                }`}
+                required
+              />
+              {errors.startDate && (
+                <p className="mt-1 text-sm text-red-600">{errors.startDate}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Start Time *</label>
+              <input
+                type="time"
+                name="startTime"
+                value={formData.startTime}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  errors.startTime ? 'border-red-500' : 'border-gray-300'
+                }`}
+                required
+              />
+              {errors.startTime && (
+                <p className="mt-1 text-sm text-red-600">{errors.startTime}</p>
+              )}
+            </div>
+
+            {/* End Date & Time */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">End Date *</label>
+              <input
+                type="date"
+                name="endDate"
+                value={formData.endDate}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                min={formData.startDate || getTomorrowDate()}
+                max={formData.startDate ? getMaxEndDate(formData.startDate) : ''}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  errors.endDate ? 'border-red-500' : 'border-gray-300'
+                }`}
+                required
+              />
+              {errors.endDate && (
+                <p className="mt-1 text-sm text-red-600">{errors.endDate}</p>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">End Time *</label>
+              <input
+                type="time"
+                name="endTime"
+                value={formData.endTime}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  errors.endTime ? 'border-red-500' : 'border-gray-300'
+                }`}
+                required
+              />
+              {errors.endTime && (
+                <p className="mt-1 text-sm text-red-600">{errors.endTime}</p>
+              )}
+            </div>
+
+            {/* Increment Value */}
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Increment Value (₹) *</label>
+              <input
+                type="number"
+                name="incrementValue"
+                value={formData.incrementValue}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                placeholder="50"
+                min="10"
+                step="1"
+                className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                  errors.incrementValue ? 'border-red-500' : 'border-gray-300'
+                }`}
+                required
+              />
+              {errors.incrementValue && (
+                <p className="mt-1 text-sm text-red-600">{errors.incrementValue}</p>
+              )}
+            </div>
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Description *</label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleChange}
+              onBlur={handleBlur}
+              placeholder="Describe the spice quality, origin, and any special features..."
+              rows={4}
+              className={`w-full px-4 py-3 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent ${
+                errors.description ? 'border-red-500' : 'border-gray-300'
+              }`}
+              required
+            />
+            {errors.description && (
+              <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+            )}
+          </div>
+
+          {/* Submit Button */}
+          <div className="flex justify-end space-x-4">
+            <button
+              type="button"
+              className="px-6 py-3 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={loading}
+              className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+            >
+              {loading && <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>}
+              <span>{loading ? 'Creating...' : 'Create Auction'}</span>
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Ongoing Auctions Component
+const OngoingAuctions = () => {
+  const [auctions, setAuctions] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    fetchAuctions();
+  }, []);
+
+  const fetchAuctions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch('http://localhost:3002/api/auctions');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch auctions');
+      }
+      
+      const data = await response.json();
+      
+      // Filter only active/ongoing auctions
+      const activeAuctions = data.filter(auction => {
+        const now = new Date();
+        const startDateTime = new Date(`${auction.startDate}T${auction.startTime}`);
+        const endDateTime = new Date(`${auction.endDate}T${auction.endTime}`);
+        
+        return now >= startDateTime && now <= endDateTime;
+      });
+      
+      setAuctions(activeAuctions);
+    } catch (error) {
+      console.error('Error fetching auctions:', error);
+      setError('Failed to load auctions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const calculateTimeLeft = (endDate, endTime) => {
+    const now = new Date();
+    const endDateTime = new Date(`${endDate}T${endTime}`);
+    const diff = endDateTime - now;
+    
+    if (diff <= 0) return 'Ended';
+    
+    const hours = Math.floor(diff / (1000 * 60 * 60));
+    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    } else {
+      return `${minutes}m`;
+    }
+  };
+
+  const handleIntervene = (auctionId) => {
+    if (confirm('Are you sure you want to intervene in this auction?')) {
+      console.log('Intervening in auction:', auctionId);
+      // Implement intervention logic
+    }
+  };
+
+  const handleEndAuction = (auctionId) => {
+    if (confirm('Are you sure you want to end this auction early?')) {
+      console.log('Ending auction:', auctionId);
+      // Implement end auction logic
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading auctions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Auctions</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={fetchAuctions}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Ongoing Auctions</h1>
+          <p className="text-gray-600">Monitor live bids and manage active auctions</p>
+        </div>
+        <div className="text-sm text-gray-500">
+          {auctions.length} active auctions
+        </div>
+      </div>
+
+      {/* Auctions List */}
+      <div className="space-y-4">
+        {auctions.map((auction) => (
+          <div key={auction._id || auction.id} className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-6 hover:shadow-xl transition-all duration-300">
+            <div className="flex items-start justify-between mb-4">
+              <div className="flex-1">
+                <div className="flex items-center space-x-3 mb-2">
+                  <h3 className="text-xl font-bold text-gray-900">{auction.auctionTitle}</h3>
+                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                    Active
+                  </span>
+                </div>
+                <div className="flex items-center space-x-6 text-sm text-gray-600">
+                  <span>Spice: {auction.spiceType}</span>
+                  <span>Increment: ₹{auction.incrementValue}</span>
+                  <span>Ends: {new Date(`${auction.endDate}T${auction.endTime}`).toLocaleString()}</span>
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-2xl font-bold text-green-600">₹{auction.currentBid || '0'}</div>
+                <div className="text-sm text-gray-500">Current Bid</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-4">
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="text-sm text-gray-600">Time Left</div>
+                <div className="text-lg font-semibold text-orange-600">
+                  {calculateTimeLeft(auction.endDate, auction.endTime)}
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="text-sm text-gray-600">Bidders</div>
+                <div className="text-lg font-semibold text-blue-600">{auction.bidders || 0}</div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="text-sm text-gray-600">Increment</div>
+                <div className="text-lg font-semibold text-gray-900">₹{auction.incrementValue}</div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-4">
+                <div className="text-sm text-gray-600">Spice Type</div>
+                <div className="text-lg font-semibold text-purple-600">{auction.spiceType}</div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="flex space-x-3">
+                <button
+                  onClick={() => handleIntervene(auction._id || auction.id)}
+                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors flex items-center space-x-2"
+                >
+                  <FaExclamationTriangle className="w-4 h-4" />
+                  <span>Intervene</span>
+                </button>
+                <button
+                  onClick={() => handleEndAuction(auction._id || auction.id)}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
+                >
+                  <FaTimesCircle className="w-4 h-4" />
+                  <span>End Auction</span>
+                </button>
+              </div>
+              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
+                <FaEye className="w-4 h-4" />
+                <span>View Details</span>
+              </button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {auctions.length === 0 && (
+        <div className="text-center py-12">
+          <FaClock className="text-gray-400 text-6xl mx-auto mb-4" />
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No Active Auctions</h3>
+          <p className="text-gray-600">There are currently no ongoing auctions.</p>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Auction Results Component
+const AuctionResults = () => {
+  const [results, setResults] = useState([
+    {
+      id: 1,
+      title: 'Premium Cardamom - Grade A',
+      farmer: 'Rajesh Kumar',
+      winner: 'Spice Traders Ltd',
+      finalBid: 3200,
+      quantity: '50 kg',
+      status: 'settled',
+      endDate: '2024-01-15',
+      commission: 160
+    },
+    {
+      id: 2,
+      title: 'Organic Turmeric',
+      farmer: 'Priya Sharma',
+      winner: 'Organic Foods Co',
+      finalBid: 2100,
+      quantity: '100 kg',
+      status: 'pending',
+      endDate: '2024-01-14',
+      commission: 105
+    },
+    {
+      id: 3,
+      title: 'Black Pepper - Premium',
+      farmer: 'Amit Patel',
+      winner: 'Export House',
+      finalBid: 3800,
+      quantity: '75 kg',
+      status: 'settled',
+      endDate: '2024-01-13',
+      commission: 190
+    }
+  ]);
+
+  const getStatusColor = (status) => {
+    switch (status) {
+      case 'settled': return 'bg-green-100 text-green-800';
+      case 'pending': return 'bg-yellow-100 text-yellow-800';
+      case 'disputed': return 'bg-red-100 text-red-800';
+      default: return 'bg-gray-100 text-gray-800';
+    }
+  };
+
+  const handleSettle = (resultId) => {
+    if (confirm('Mark this auction as settled?')) {
+      setResults(results.map(r => 
+        r.id === resultId ? {...r, status: 'settled'} : r
+      ));
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Auction Results</h1>
+          <p className="text-gray-600">View winners and manage settlement status</p>
+        </div>
+        <div className="text-sm text-gray-500">
+          {results.length} completed auctions
+        </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">Settled</p>
+              <p className="text-3xl font-bold">{results.filter(r => r.status === 'settled').length}</p>
+            </div>
+            <FaCheckCircle className="w-8 h-8 text-green-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-yellow-100 text-sm font-medium">Pending</p>
+              <p className="text-3xl font-bold">{results.filter(r => r.status === 'pending').length}</p>
+            </div>
+            <FaClock className="w-8 h-8 text-yellow-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Total Revenue</p>
+              <p className="text-3xl font-bold">₹{results.reduce((sum, r) => sum + r.finalBid, 0).toLocaleString()}</p>
+            </div>
+            <FaRupeeSign className="w-8 h-8 text-blue-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-medium">Commission</p>
+              <p className="text-3xl font-bold">₹{results.reduce((sum, r) => sum + r.commission, 0).toLocaleString()}</p>
+            </div>
+            <FaChartBar className="w-8 h-8 text-purple-200" />
+          </div>
+        </div>
+      </div>
+
+      {/* Results Table */}
+      <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Auction</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Winner</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Final Bid</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {results.map((result) => (
+                <tr key={result.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{result.title}</div>
+                      <div className="text-sm text-gray-500">Farmer: {result.farmer}</div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {result.winner}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div className="text-sm font-medium text-gray-900">₹{result.finalBid}</div>
+                    <div className="text-sm text-gray-500">Commission: ₹{result.commission}</div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {result.quantity}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(result.status)}`}>
+                      {result.status}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(result.endDate).toLocaleDateString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    {result.status === 'pending' && (
+                      <button
+                        onClick={() => handleSettle(result.id)}
+                        className="text-green-600 hover:text-green-900 mr-3"
+                      >
+                        Settle
+                      </button>
+                    )}
+                    <button className="text-blue-600 hover:text-blue-900">
+                      View Details
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Auction History Component
+const AuctionHistory = () => {
+  const [history] = useState([
+    {
+      id: 1,
+      title: 'Premium Cardamom - Grade A',
+      farmer: 'Rajesh Kumar',
+      winner: 'Spice Traders Ltd',
+      finalBid: 3200,
+      quantity: '50 kg',
+      endDate: '2024-01-15',
+      duration: '24h',
+      totalBids: 45,
+      revenue: 160000
+    },
+    {
+      id: 2,
+      title: 'Organic Turmeric',
+      farmer: 'Priya Sharma',
+      winner: 'Organic Foods Co',
+      finalBid: 2100,
+      quantity: '100 kg',
+      endDate: '2024-01-14',
+      duration: '18h',
+      totalBids: 32,
+      revenue: 210000
+    },
+    {
+      id: 3,
+      title: 'Black Pepper - Premium',
+      farmer: 'Amit Patel',
+      winner: 'Export House',
+      finalBid: 3800,
+      quantity: '75 kg',
+      endDate: '2024-01-13',
+      duration: '36h',
+      totalBids: 67,
+      revenue: 285000
+    }
+  ]);
+
+  const [filter, setFilter] = useState('all');
+  const [dateRange, setDateRange] = useState('30');
+
+  const filteredHistory = history.filter(item => {
+    if (filter === 'all') return true;
+    if (filter === 'high-value') return item.finalBid > 3000;
+    if (filter === 'recent') return new Date(item.endDate) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    return true;
+  });
+
+  const totalRevenue = history.reduce((sum, item) => sum + item.revenue, 0);
+  const totalBids = history.reduce((sum, item) => sum + item.totalBids, 0);
+  const averageBid = totalBids > 0 ? (totalRevenue / totalBids).toFixed(0) : 0;
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Auction History & Reports</h1>
+          <p className="text-gray-600">Analytics and insights from past auctions</p>
+        </div>
+      </div>
+
+      {/* Analytics Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-blue-100 text-sm font-medium">Total Auctions</p>
+              <p className="text-3xl font-bold">{history.length}</p>
+            </div>
+            <FaGavel className="w-8 h-8 text-blue-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-green-100 text-sm font-medium">Total Revenue</p>
+              <p className="text-3xl font-bold">₹{(totalRevenue / 100000).toFixed(1)}L</p>
+            </div>
+            <FaRupeeSign className="w-8 h-8 text-green-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-purple-100 text-sm font-medium">Total Bids</p>
+              <p className="text-3xl font-bold">{totalBids}</p>
+            </div>
+            <FaChartLine className="w-8 h-8 text-purple-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-orange-100 text-sm font-medium">Avg Bid</p>
+              <p className="text-3xl font-bold">₹{averageBid}</p>
+            </div>
+            <FaChartBar className="w-8 h-8 text-orange-200" />
+          </div>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="bg-white/80 backdrop-blur-xl rounded-xl shadow-lg border border-white/30 p-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Filter</label>
+            <select
+              value={filter}
+              onChange={(e) => setFilter(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="all">All Auctions</option>
+                <option value="high-value">High Value (&gt;₹3000)</option>
+              <option value="recent">Last 7 Days</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Date Range</label>
+            <select
+              value={dateRange}
+              onChange={(e) => setDateRange(e.target.value)}
+              className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            >
+              <option value="7">Last 7 Days</option>
+              <option value="30">Last 30 Days</option>
+              <option value="90">Last 90 Days</option>
+              <option value="365">Last Year</option>
+            </select>
+          </div>
+          <div className="flex items-end">
+            <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+              Export Report
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* History Table */}
+      <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Auction</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Winner</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Final Bid</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Bids</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredHistory.map((item) => (
+                <tr key={item.id} className="hover:bg-gray-50">
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{item.title}</div>
+                      <div className="text-sm text-gray-500">Farmer: {item.farmer}</div>
+                    </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {item.winner}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                    ₹{item.finalBid}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {item.quantity}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {item.duration}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                    {item.totalBids}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
+                    ₹{item.revenue.toLocaleString()}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                    {new Date(item.endDate).toLocaleDateString()}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* Charts Section */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Revenue Trend</h3>
+          <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="text-center">
+              <FaChartLine className="w-12 h-12 mx-auto mb-2" />
+              <p>Chart visualization would go here</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-6">
+          <h3 className="text-lg font-semibold text-gray-900 mb-4">Spice Type Distribution</h3>
+          <div className="h-64 flex items-center justify-center text-gray-500">
+            <div className="text-center">
+              <FaChartBar className="w-12 h-12 mx-auto mb-2" />
+              <p>Pie chart visualization would go here</p>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
