@@ -126,7 +126,7 @@ const InventoryManagement = ({ user }) => {
     { value: 'all', label: 'All Items', icon: FaBox, color: 'gray' },
     { value: 'available', label: 'Available', icon: FaCheckCircle, color: 'green' },
     { value: 'sold', label: 'Sold', icon: FaTimesCircle, color: 'red' },
-    { value: 'pending_auction', label: 'Pending Auction', icon: FaClock, color: 'yellow' }
+    { value: 'Pending Auction', label: 'Pending Auction', icon: FaClock, color: 'yellow' }
   ];
 
   const spiceOptions = ['Cardamom'];
@@ -501,7 +501,7 @@ const InventoryManagement = ({ user }) => {
     switch (itemStatus) {
       case 'available': return 'bg-green-100 text-green-800';
       case 'sold': return 'bg-red-100 text-red-800';
-      case 'pending_auction': return 'bg-yellow-100 text-yellow-800';
+      case 'Pending Auction': return 'bg-yellow-100 text-yellow-800';
       default: return 'bg-gray-100 text-gray-800';
     }
   };
@@ -511,9 +511,43 @@ const InventoryManagement = ({ user }) => {
     switch (itemStatus) {
       case 'available': return <FaCheckCircle className="w-4 h-4" />;
       case 'sold': return <FaTimesCircle className="w-4 h-4" />;
-      case 'pending_auction': return <FaClock className="w-4 h-4" />;
+      case 'Pending Auction': return <FaClock className="w-4 h-4" />;
       default: return <FaBox className="w-4 h-4" />;
     }
+  };
+
+  // Check if item needs grading update (older than 7 days since last update)
+  const isItemOlderThan7Days = (item) => {
+    // Use updatedAt if available, otherwise fall back to createdAt or addedDate
+    const lastUpdateDate = item.updatedAt || item.addedDate || item.createdAt;
+    if (!lastUpdateDate) return false;
+    
+    const itemDate = new Date(lastUpdateDate);
+    const currentDate = new Date();
+    const diffTime = Math.abs(currentDate - itemDate);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays > 7;
+  };
+
+  // Handle update grading
+  const handleUpdateGrading = (item) => {
+    // Set the item for editing and open the form
+    setEditingItem(item);
+    setNewItem({
+      name: item.spiceName || item.name,
+      weight: item.weight.toString(),
+      location: item.location || farmLocation,
+      image: item.spiceImage 
+        ? (item.spiceImage.startsWith('http') 
+            ? item.spiceImage 
+            : `http://localhost:3001${item.spiceImage}`)
+        : (item.image || '/api/placeholder/100/100')
+    });
+    setCurrentGrade(item.grade || '');
+    setMarkAsSold(item.status === 'sold');
+    setShowAddForm(true);
+    setActiveTab('add');
   };
 
   return (
@@ -906,7 +940,7 @@ const InventoryManagement = ({ user }) => {
                 <div key={item._id || item.id} className="p-6 hover:bg-gray-50 transition-colors">
                   <div className="flex items-start space-x-4">
                     {/* Image */}
-                    <div className="flex-shrink-0">
+                    <div className="flex-shrink-0 relative">
                       <img
                         src={
                           item.spiceImage 
@@ -918,6 +952,15 @@ const InventoryManagement = ({ user }) => {
                         alt={item.spiceName || item.name}
                         className="w-20 h-20 object-cover rounded-lg border border-gray-200"
                       />
+                      {/* Update Grading Overlay for items older than 7 days */}
+                      {isItemOlderThan7Days(item) && item.status !== 'sold' && (
+                        <div className="absolute inset-0 bg-orange-500 bg-opacity-90 rounded-lg flex items-center justify-center">
+                          <div className="text-center text-white">
+                            <FaRobot className="w-6 h-6 mx-auto mb-1" />
+                            <span className="text-xs font-medium">Update Grading</span>
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     {/* Item Details */}
@@ -943,7 +986,17 @@ const InventoryManagement = ({ user }) => {
                               <FaMapMarkerAlt className="w-4 h-4" />
                               <span>{item.location}</span>
                             </span>
-                            <span>Added: {item.addedDate || item.createdAt?.split('T')[0] || 'Unknown'}</span>
+                            <span className="flex items-center space-x-1">
+                              <span>
+                                {item.updatedAt ? 'Updated: ' : 'Added: '}
+                                {(item.updatedAt || item.addedDate || item.createdAt)?.split('T')[0] || 'Unknown'}
+                              </span>
+                              {isItemOlderThan7Days(item) && item.status !== 'sold' && (
+                                <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs font-medium rounded-full">
+                                  Needs Update
+                                </span>
+                              )}
+                            </span>
                             
                             {/* Expected Price Display - Next to date */}
                             {item.grade && item.weight && (() => {
@@ -993,20 +1046,35 @@ const InventoryManagement = ({ user }) => {
                           </div>
 
                           <div className="flex items-center space-x-2">
-                            <button
-                              onClick={() => handleEditItem(item)}
-                              className="p-2 text-gray-400 hover:text-emerald-600 transition-colors"
-                              title="Edit item"
-                            >
-                              <FaEdit className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteItem(item)}
-                              className="p-2 text-gray-400 hover:text-red-600 transition-colors"
-                              title="Delete item"
-                            >
-                              <FaTrash className="w-4 h-4" />
-                            </button>
+                            {/* Update Grading Button for items older than 7 days */}
+                            {isItemOlderThan7Days(item) && item.status !== 'sold' && (
+                              <button
+                                onClick={() => handleUpdateGrading(item)}
+                                className="px-3 py-1 bg-orange-500 hover:bg-orange-600 text-white text-xs font-medium rounded-lg transition-colors flex items-center space-x-1"
+                                title="Update grading for this item"
+                              >
+                                <FaRobot className="w-3 h-3" />
+                                <span>Update Image</span>
+                              </button>
+                            )}
+                            {item.status !== 'Pending Auction' && item.status !== 'sold' && (
+                              <>
+                                <button
+                                  onClick={() => handleEditItem(item)}
+                                  className="p-2 text-gray-400 hover:text-emerald-600 transition-colors"
+                                  title="Edit item"
+                                >
+                                  <FaEdit className="w-4 h-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteItem(item)}
+                                  className="p-2 text-gray-400 hover:text-red-600 transition-colors"
+                                  title="Delete item"
+                                >
+                                  <FaTrash className="w-4 h-4" />
+                                </button>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>

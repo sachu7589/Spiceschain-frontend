@@ -1,12 +1,33 @@
 import React, { useState, useEffect } from 'react';
-import { FaCog, FaSignOutAlt, FaUser, FaUsers, FaChartBar, FaShieldAlt, FaLeaf, FaBuilding, FaClipboardList, FaExclamationTriangle, FaCheckCircle, FaClock, FaDollarSign, FaBell, FaEye, FaEdit, FaTrash, FaWeight, FaRupeeSign, FaTimesCircle, FaRobot, FaGavel, FaTrophy, FaHistory, FaChartLine } from 'react-icons/fa';
+import { FaCog, FaSignOutAlt, FaUser, FaUsers, FaChartBar, FaShieldAlt, FaLeaf, FaBuilding, FaClipboardList, FaExclamationTriangle, FaCheckCircle, FaClock, FaDollarSign, FaBell, FaEye, FaEdit, FaTrash, FaWeight, FaRupeeSign, FaTimesCircle, FaRobot, FaGavel, FaTrophy, FaHistory, FaChartLine, FaTimes, FaRedo, FaBox, FaExclamationTriangle as FaWarning } from 'react-icons/fa';
 import { useAuth } from '../../context/AuthContext';
-import { authAPI, inventoryAPI } from '../../services/api';
+import { authAPI, inventoryAPI, auctionAPI } from '../../services/api';
+import Swal from 'sweetalert2';
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeMenu, setActiveMenu] = useState('dashboard');
+  const [toast, setToast] = useState({ show: false, message: '', type: 'success', animating: false });
+
+  // Function to show toast notification
+  const showToast = (message, type = 'success') => {
+    setToast({ show: true, message, type, animating: true });
+    setTimeout(() => {
+      setToast(prev => ({ ...prev, animating: false }));
+      setTimeout(() => {
+        setToast({ show: false, message: '', type: 'success', animating: false });
+      }, 300);
+    }, 4000);
+  };
+
+  // Function to dismiss toast
+  const dismissToast = () => {
+    setToast(prev => ({ ...prev, animating: false }));
+    setTimeout(() => {
+      setToast({ show: false, message: '', type: 'success', animating: false });
+    }, 300);
+  };
 
   if (!user) {
     return (
@@ -38,9 +59,9 @@ const AdminDashboard = () => {
       case 'inventory':
         return <InventoryOversight />;
       case 'auction-management':
-        return <AuctionManagement onMenuClick={handleMenuClick} />;
+        return <AuctionManagement onMenuClick={handleMenuClick} showToast={showToast} />;
       case 'create-auction':
-        return <CreateAuction />;
+        return <CreateAuction showToast={showToast} />;
       case 'ongoing-auctions':
         return <OngoingAuctions />;
       case 'auction-results':
@@ -82,6 +103,37 @@ const AdminDashboard = () => {
 
   return (
     <div className="flex h-screen bg-gradient-to-br from-gray-50 to-gray-100">
+      {/* Toast Notification */}
+      {toast.show && (
+        <div className="fixed top-4 right-4 z-50 transform transition-all duration-500 ease-out"
+             style={{
+               animation: toast.animating ? 'slideInFromRight 0.5s ease-out forwards' : 'slideOutToRight 0.3s ease-in forwards'
+             }}>
+          <div className={`flex items-center space-x-3 px-6 py-4 rounded-lg shadow-xl border-l-4 backdrop-blur-sm ${
+            toast.type === 'success' 
+              ? 'bg-green-50/95 border-green-500 text-green-800' 
+              : 'bg-red-50/95 border-red-500 text-red-800'
+          }`}>
+            <div className={`w-6 h-6 rounded-full flex items-center justify-center ${
+              toast.type === 'success' ? 'bg-green-500' : 'bg-red-500'
+            }`}>
+              {toast.type === 'success' ? (
+                <FaCheckCircle className="w-4 h-4 text-white" />
+              ) : (
+                <FaTimesCircle className="w-4 h-4 text-white" />
+              )}
+            </div>
+            <span className="font-medium">{toast.message}</span>
+            <button
+              onClick={dismissToast}
+              className="ml-2 text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <FaTimes className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+      
       {/* Sidebar */}
       <div className={`bg-white/80 backdrop-blur-xl shadow-2xl border-r border-white/20 transition-all duration-300 ease-in-out ${
         sidebarCollapsed ? 'w-20' : 'w-72'
@@ -263,6 +315,7 @@ const AdminDashboard = () => {
 const AdminDashboardOverview = () => {
   const [farmers, setFarmers] = useState([]);
   const [buyers, setBuyers] = useState([]);
+  const [auctions, setAuctions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -275,13 +328,15 @@ const AdminDashboardOverview = () => {
       setLoading(true);
       setError(null);
       
-      const [farmersResponse, buyersResponse] = await Promise.all([
+      const [farmersResponse, buyersResponse, auctionsResponse] = await Promise.all([
         authAPI.getAllFarmers(),
-        authAPI.getAllBuyers()
+        authAPI.getAllBuyers(),
+        fetch('http://localhost:3002/api/auctions').then(res => res.json())
       ]);
       
       setFarmers(farmersResponse.data.farmers || []);
       setBuyers(buyersResponse.data.buyers || []);
+      setAuctions(auctionsResponse || []);
     } catch (error) {
       console.error('Error fetching dashboard data:', error);
       setError('Failed to load dashboard data');
@@ -295,6 +350,29 @@ const AdminDashboardOverview = () => {
   const verifiedBuyers = buyers.filter(buyer => buyer.isVerified).length;
   const totalVerified = verifiedFarmers + verifiedBuyers;
   const pendingVerificationsCount = farmers.filter(f => !f.isVerified).length + buyers.filter(b => !b.isVerified).length;
+
+  // Calculate auction metrics
+  const now = new Date();
+  const activeAuctions = auctions.filter(auction => {
+    const startDate = new Date(auction.startDate);
+    const endDate = new Date(auction.endDate);
+    return now >= startDate && now <= endDate && auction.status !== 'End Auction';
+  });
+
+  const upcomingAuctions = auctions.filter(auction => {
+    const startDate = new Date(auction.startDate);
+    const endDate = new Date(auction.endDate);
+    return startDate > now && auction.status !== 'End Auction' && endDate >= now;
+  });
+
+  const completedAuctions = auctions.filter(auction => {
+    const endDate = new Date(auction.endDate);
+    return auction.status === 'End Auction' || endDate < now;
+  });
+
+  const recentCompletedAuctions = completedAuctions
+    .sort((a, b) => new Date(b.endDate) - new Date(a.endDate))
+    .slice(0, 5);
 
 
   // Get recent registrations (last 5 from both farmers and buyers)
@@ -382,7 +460,11 @@ const AdminDashboardOverview = () => {
     { label: 'Verified Users', value: totalVerified.toLocaleString(), icon: FaCheckCircle, color: 'green' },
     { label: 'Pending Verifications', value: pendingVerificationsCount.toLocaleString(), icon: FaShieldAlt, color: 'orange' },
     { label: 'Total Farmers', value: farmers.length.toLocaleString(), icon: FaLeaf, color: 'green' },
-    { label: 'Total Buyers', value: buyers.length.toLocaleString(), icon: FaBuilding, color: 'blue' }
+    { label: 'Total Buyers', value: buyers.length.toLocaleString(), icon: FaBuilding, color: 'blue' },
+    { label: 'Active Auctions', value: activeAuctions.length.toLocaleString(), icon: FaGavel, color: 'blue' },
+    { label: 'Upcoming Auctions', value: upcomingAuctions.length.toLocaleString(), icon: FaClock, color: 'orange' },
+    { label: 'Completed Auctions', value: completedAuctions.length.toLocaleString(), icon: FaTrophy, color: 'green' },
+    { label: 'Total Auctions', value: auctions.length.toLocaleString(), icon: FaChartBar, color: 'purple' }
   ];
 
   if (loading) {
@@ -503,77 +585,113 @@ const AdminDashboardOverview = () => {
         {/* Auction Details */}
         <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-gray-900">Active Auctions</h3>
+            <h3 className="text-xl font-bold text-gray-900">Active Auctions ({activeAuctions.length})</h3>
           </div>
-          <div className="space-y-4">
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-gray-900">Premium Turmeric</h4>
-                <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  Active
-                </span>
+          <div className="space-y-4 max-h-96 overflow-y-auto">
+            {activeAuctions.length === 0 ? (
+              <div className="text-center py-8">
+                <FaGavel className="text-gray-400 text-4xl mx-auto mb-2" />
+                <p className="text-gray-500">No active auctions</p>
               </div>
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>Farmer: Rajesh Kumar</span>
-                <span>12 bidders</span>
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-lg font-bold text-green-600">₹2,450/kg</span>
-                <span className="text-sm text-gray-500">2h 15m left</span>
-              </div>
-            </div>
-
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-gray-900">Organic Cardamom</h4>
-                <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  Active
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>Farmer: Priya Sharma</span>
-                <span>8 bidders</span>
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-lg font-bold text-green-600">₹1,850/kg</span>
-                <span className="text-sm text-gray-500">45m left</span>
-              </div>
-            </div>
-
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-gray-900">Black Pepper</h4>
-                <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
-                  Active
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>Farmer: Amit Patel</span>
-                <span>15 bidders</span>
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-lg font-bold text-green-600">₹3,200/kg</span>
-                <span className="text-sm text-gray-500">5h 30m left</span>
-              </div>
-            </div>
-
-            <div className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
-              <div className="flex items-center justify-between mb-2">
-                <h4 className="font-semibold text-gray-900">Cinnamon Sticks</h4>
-                <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
-                  Completed
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm text-gray-600">
-                <span>Farmer: Suresh Reddy</span>
-                <span>6 bidders</span>
-              </div>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-lg font-bold text-green-600">₹1,200/kg</span>
-                <span className="text-sm text-gray-500">Ended</span>
-              </div>
-            </div>
+            ) : (
+              activeAuctions.slice(0, 4).map((auction) => {
+                const endDate = new Date(auction.endDate);
+                const timeLeft = endDate - now;
+                const hoursLeft = Math.floor(timeLeft / (1000 * 60 * 60));
+                const minutesLeft = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+                
+                return (
+                  <div key={auction._id || auction.id} className="p-4 bg-gray-50 rounded-xl border border-gray-200 hover:bg-gray-100 transition-colors">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-semibold text-gray-900">{auction.auctionTitle}</h4>
+                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        Active
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-sm text-gray-600">
+                      <span>Type: {auction.spiceType}</span>
+                      <span>{auction.bidders || 0} bidders</span>
+                    </div>
+                    <div className="flex items-center justify-between mt-2">
+                      <span className="text-lg font-bold text-green-600">₹{(auction.currentBid || 0).toLocaleString()}</span>
+                      <span className="text-sm text-gray-500">
+                        {timeLeft > 0 ? `${hoursLeft}h ${minutesLeft}m left` : 'Ending soon'}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })
+            )}
           </div>
+
+          {activeAuctions.length === 0 && (
+            <>
+              <div className="mt-6 border-t border-gray-200 pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-gray-900">Upcoming Auctions ({upcomingAuctions.length})</h3>
+                </div>
+                <div className="space-y-4 max-h-64 overflow-y-auto">
+                  {upcomingAuctions.slice(0, 3).map((auction) => (
+                    <div key={auction._id || auction.id} className="p-4 bg-blue-50 rounded-xl border border-blue-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-gray-900">{auction.auctionTitle}</h4>
+                        <span className="px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                          Upcoming
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <span>Type: {auction.spiceType}</span>
+                        <span>Starts: {new Date(auction.startDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-sm font-medium text-blue-600">Increment: ₹{auction.incrementValue}</span>
+                      </div>
+                    </div>
+                  ))}
+                  {upcomingAuctions.length === 0 && (
+                    <div className="text-center py-4">
+                      <FaClock className="text-gray-400 text-3xl mx-auto mb-2" />
+                      <p className="text-gray-500 text-sm">No upcoming auctions</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="mt-6 border-t border-gray-200 pt-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-xl font-bold text-gray-900">Recent Completed ({recentCompletedAuctions.length})</h3>
+                </div>
+                <div className="space-y-4 max-h-64 overflow-y-auto">
+                  {recentCompletedAuctions.map((auction) => (
+                    <div key={auction._id || auction.id} className="p-4 bg-gray-50 rounded-xl border border-gray-200">
+                      <div className="flex items-center justify-between mb-2">
+                        <h4 className="font-semibold text-gray-900">{auction.auctionTitle}</h4>
+                        <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                          auction.status === 'End Auction' ? 'bg-red-100 text-red-800' : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {auction.status === 'End Auction' ? 'Ended Early' : 'Completed'}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between text-sm text-gray-600">
+                        <span>Type: {auction.spiceType}</span>
+                        <span>Ended: {new Date(auction.endDate).toLocaleDateString('en-IN', { month: 'short', day: 'numeric' })}</span>
+                      </div>
+                      <div className="flex items-center justify-between mt-2">
+                        <span className="text-lg font-bold text-gray-900">₹{(auction.currentBid || 0).toLocaleString()}</span>
+                        <span className="text-sm text-gray-500">{auction.bidders || 0} bidders</span>
+                      </div>
+                    </div>
+                  ))}
+                  {recentCompletedAuctions.length === 0 && (
+                    <div className="text-center py-4">
+                      <FaTrophy className="text-gray-400 text-3xl mx-auto mb-2" />
+                      <p className="text-gray-500 text-sm">No completed auctions yet</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Recent Registrations */}
@@ -1136,6 +1254,8 @@ const InventoryOversight = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [farmerFilter, setFarmerFilter] = useState('all');
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   useEffect(() => {
     fetchAllInventory();
@@ -1187,7 +1307,8 @@ const InventoryOversight = () => {
 
 
   const handleViewDetails = (item) => {
-    console.log('View details for item:', item);
+    setSelectedItem(item);
+    setShowDetailsModal(true);
   };
 
   // Calculate total inventory metrics
@@ -1206,6 +1327,7 @@ const InventoryOversight = () => {
   }, 0);
   
   const availableItems = allInventory.filter(item => item.status === 'available').length;
+  const pendingAuctionItems = allInventory.filter(item => item.status === 'Pending Auction').length;
   const soldItems = allInventory.filter(item => item.status === 'sold').length;
 
   // Get unique farmers for filter
@@ -1240,7 +1362,7 @@ const InventoryOversight = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
           <div className="flex items-center justify-between">
             <div>
@@ -1264,17 +1386,27 @@ const InventoryOversight = () => {
         <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-emerald-100 text-sm font-medium">Available Items</p>
+              <p className="text-emerald-100 text-sm font-medium">Available</p>
               <p className="text-3xl font-bold">{availableItems}</p>
             </div>
             <FaCheckCircle className="w-8 h-8 text-emerald-200" />
           </div>
         </div>
 
+        <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-yellow-100 text-sm font-medium">Pending Auction</p>
+              <p className="text-3xl font-bold">{pendingAuctionItems}</p>
+            </div>
+            <FaClock className="w-8 h-8 text-yellow-200" />
+          </div>
+        </div>
+
         <div className="bg-gradient-to-r from-gray-500 to-gray-600 text-white p-6 rounded-xl shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-gray-100 text-sm font-medium">Sold Items</p>
+              <p className="text-gray-100 text-sm font-medium">Sold</p>
               <p className="text-3xl font-bold">{soldItems}</p>
             </div>
             <FaTimesCircle className="w-8 h-8 text-gray-200" />
@@ -1304,6 +1436,7 @@ const InventoryOversight = () => {
             >
               <option value="all">All Status</option>
               <option value="available">Available</option>
+              <option value="Pending Auction">Pending Auction</option>
               <option value="sold">Sold</option>
             </select>
           </div>
@@ -1382,11 +1515,13 @@ const InventoryOversight = () => {
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                       item.status === 'available' ? 'bg-green-100 text-green-800' :
                       item.status === 'sold' ? 'bg-gray-100 text-gray-800' :
+                      item.status === 'Pending Auction' ? 'bg-yellow-100 text-yellow-800' :
                       'bg-gray-100 text-gray-800'
                     }`}>
                       {item.status === 'available' ? 'Available' :
                        item.status === 'sold' ? 'Sold' :
-                       'Unknown'}
+                       item.status === 'Pending Auction' ? 'Pending Auction' :
+                       item.status || 'Unknown'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -1411,18 +1546,147 @@ const InventoryOversight = () => {
         )}
       </div>
 
+      {/* Inventory Details Modal */}
+      {showDetailsModal && selectedItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-hidden">
+            {/* Header */}
+            <div className="p-6 border-b border-gray-200 bg-gradient-to-r from-blue-500 to-blue-600">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-2xl font-bold text-white">Inventory Item Details</h2>
+                  <p className="text-blue-50 mt-1">Complete information</p>
+                </div>
+                <button
+                  onClick={() => setShowDetailsModal(false)}
+                  className="text-white hover:text-blue-100 transition-colors"
+                >
+                  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-180px)]">
+              <div className="space-y-6">
+                {/* Image */}
+                {selectedItem.spiceImage && (
+                  <div className="flex justify-center">
+                    <img
+                      src={
+                        selectedItem.spiceImage.startsWith('http')
+                          ? selectedItem.spiceImage
+                          : `http://localhost:3001${selectedItem.spiceImage}`
+                      }
+                      alt={selectedItem.spiceName}
+                      className="w-48 h-48 object-cover rounded-lg border-2 border-blue-300"
+                    />
+                  </div>
+                )}
+
+                {/* Item Details */}
+                <div className="bg-gray-50 rounded-lg p-4 space-y-3">
+                  <h3 className="text-lg font-bold text-gray-900 mb-3">Item Information</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <span className="text-sm text-gray-600">Spice Name:</span>
+                      <p className="font-medium text-gray-900">{selectedItem.spiceName}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">Weight:</span>
+                      <p className="font-medium text-gray-900">{selectedItem.weight} kg</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">Grade:</span>
+                      <p className="font-medium text-emerald-700">{selectedItem.grade}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">Status:</span>
+                      <span className={`ml-2 px-2 py-1 rounded-full text-xs font-medium ${
+                        selectedItem.status === 'available' ? 'bg-green-100 text-green-800' :
+                        selectedItem.status === 'sold' ? 'bg-gray-100 text-gray-800' :
+                        selectedItem.status === 'Pending Auction' ? 'bg-yellow-100 text-yellow-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {selectedItem.status === 'available' ? 'Available' :
+                         selectedItem.status === 'sold' ? 'Sold' :
+                         selectedItem.status === 'Pending Auction' ? 'Pending Auction' :
+                         selectedItem.status || 'Unknown'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Farmer Details */}
+                <div className="bg-blue-50 rounded-lg p-4 space-y-3">
+                  <h3 className="text-lg font-bold text-gray-900 mb-3">Farmer Information</h3>
+                  <div className="grid grid-cols-1 gap-3">
+                    <div>
+                      <span className="text-sm text-gray-600">Name:</span>
+                      <p className="font-medium text-gray-900">{selectedItem.farmerName}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">Email:</span>
+                      <p className="font-medium text-gray-900">{selectedItem.farmerEmail}</p>
+                    </div>
+                    <div>
+                      <span className="text-sm text-gray-600">Location:</span>
+                      <p className="font-medium text-gray-900">{selectedItem.farmerLocation}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Dates */}
+                {selectedItem.createdAt && (
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div>
+                        <span className="text-gray-600">Added On:</span>
+                        <p className="font-medium text-gray-900">
+                          {new Date(selectedItem.createdAt).toLocaleDateString('en-IN', {
+                            day: '2-digit',
+                            month: 'short',
+                            year: 'numeric'
+                          })}
+                        </p>
+                      </div>
+                      {selectedItem.updatedAt && (
+                        <div>
+                          <span className="text-gray-600">Last Updated:</span>
+                          <p className="font-medium text-gray-900">
+                            {new Date(selectedItem.updatedAt).toLocaleDateString('en-IN', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric'
+                            })}
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 // Auction Management Components
-const AuctionManagement = ({ onMenuClick }) => {
+const AuctionManagement = ({ onMenuClick, showToast }) => {
   const [upcomingAuctions, setUpcomingAuctions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedAuction, setSelectedAuction] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editModalOpen, setEditModalOpen] = useState(false);
+  const [showParticipantsView, setShowParticipantsView] = useState(false);
+  const [participants, setParticipants] = useState([]);
   const [editFormData, setEditFormData] = useState({
     description: '',
     incrementValue: ''
@@ -1452,11 +1716,19 @@ const AuctionManagement = ({ onMenuClick }) => {
       
       const data = await response.json();
       
-      // Filter upcoming auctions (status: upcoming or start date in future)
+      // Filter upcoming auctions (start date in future, not ended, and not marked as "End Auction")
       const upcoming = data.filter(auction => {
         const now = new Date();
         const startDateTime = new Date(auction.startDate);
-        return auction.status === 'upcoming' || startDateTime > now;
+        const endDateTime = new Date(auction.endDate);
+        
+        // Exclude if status is "End Auction" or if end date has passed
+        if (auction.status === 'End Auction' || endDateTime < now) {
+          return false;
+        }
+        
+        // Include if start date is in future
+        return startDateTime > now;
       });
       
       setUpcomingAuctions(upcoming);
@@ -1524,6 +1796,62 @@ const AuctionManagement = ({ onMenuClick }) => {
     setModalOpen(true);
   };
 
+  const handleViewParticipants = async (auction) => {
+    try {
+      setSelectedAuction(auction);
+      const auctionId = auction._id || auction.id;
+      
+      // Fetch participants for this auction
+      const joinData = await auctionAPI.getJoinAuctionsByAuctionId(auctionId);
+      
+      // Fetch all farmers once (same way as ManageFarmers component)
+      let allFarmersData = [];
+      try {
+        const response = await authAPI.getAllFarmers();
+        allFarmersData = response.data.farmers || [];
+        console.log('Fetched farmers:', allFarmersData);
+      } catch (error) {
+        console.error('Error fetching all farmers:', error);
+      }
+      
+      // Fetch inventory and farmer details for each participant
+      const participantsWithInventory = await Promise.all(
+        joinData.map(async (join) => {
+          let inventoryItem = null;
+          let farmer = null;
+          
+          // Fetch inventory item
+          try {
+            inventoryItem = await inventoryAPI.getInventoryItem(join.inventoryId);
+          } catch (error) {
+            console.error('Error fetching inventory for participant:', error);
+          }
+          
+          // Find farmer from the pre-fetched list
+          if (Array.isArray(allFarmersData) && allFarmersData.length > 0) {
+            farmer = allFarmersData.find(f => f._id === join.farmerId || f.id === join.farmerId);
+          }
+          
+          if (!farmer) {
+            console.log('Farmer not found for ID:', join.farmerId);
+          }
+          
+          return {
+            ...join,
+            inventoryItem,
+            farmer
+          };
+        })
+      );
+      
+      setParticipants(participantsWithInventory);
+      setShowParticipantsView(true);
+    } catch (error) {
+      console.error('Error fetching participants:', error);
+      Swal.fire('Error', 'Failed to load participants', 'error');
+    }
+  };
+
   const handleEditAuction = (auction) => {
     setSelectedAuction(auction);
     setEditFormData({
@@ -1535,21 +1863,101 @@ const AuctionManagement = ({ onMenuClick }) => {
   };
 
   const handleDeleteAuction = async (auction) => {
-    if (confirm(`Are you sure you want to delete the auction "${auction.auctionTitle}"?`)) {
+    // Check if auction is active/ongoing
+    const now = new Date();
+    const startDateTime = new Date(`${auction.startDate}T${auction.startTime}`);
+    const endDateTime = new Date(`${auction.endDate}T${auction.endTime}`);
+    
+    if (now >= startDateTime && now <= endDateTime) {
+      Swal.fire({
+        icon: 'warning',
+        title: 'Cannot Delete Active Auction',
+        text: 'This auction is currently active and cannot be deleted. Please wait for it to end.',
+        confirmButtonText: 'Understood',
+        confirmButtonColor: '#f59e0b',
+        customClass: {
+          popup: 'swal2-error-popup',
+          title: 'swal2-title',
+          content: 'swal2-content'
+        }
+      });
+      return;
+    }
+
+    // Custom SweetAlert2 modal for delete confirmation
+    const result = await Swal.fire({
+      title: 'Delete Auction',
+      html: `
+        <div class="text-center">
+          <div class="mb-4">
+            <div class="w-16 h-16 mx-auto bg-red-100 rounded-full flex items-center justify-center mb-4">
+              <svg class="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">${auction.auctionTitle}</h3>
+            <p class="text-sm text-gray-600 mb-4">${auction.spiceType}</p>
+          </div>
+          <div class="bg-red-50 border border-red-200 rounded-lg p-4 mb-4">
+            <div class="flex items-center">
+              <svg class="w-5 h-5 text-red-600 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+              </svg>
+              <span class="text-sm font-medium text-red-800">This action cannot be undone</span>
+            </div>
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Delete Auction',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      reverseButtons: true,
+      focusCancel: true,
+      customClass: {
+        popup: 'swal2-popup-custom',
+        title: 'swal2-title-custom',
+        content: 'swal2-content-custom',
+        confirmButton: 'swal2-confirm-custom',
+        cancelButton: 'swal2-cancel-custom'
+      }
+    });
+
+    if (result.isConfirmed) {
+      // Show loading state
+      Swal.fire({
+        title: 'Deleting Auction...',
+        text: 'Please wait while we delete the auction',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
       try {
+        console.log('Deleting auction:', auction._id);
         const response = await fetch(`http://localhost:3002/api/auctions/${auction._id}`, {
           method: 'DELETE'
         });
         
         if (response.ok) {
-          alert('Auction deleted successfully!');
+          console.log('Auction deleted successfully');
+          
+          // Close loading modal and show success
+          Swal.close();
+          showToast('Auction deleted successfully!', 'success');
           fetchUpcomingAuctions(); // Refresh the list
         } else {
-          throw new Error('Failed to delete auction');
+          const errorData = await response.json();
+          throw new Error(errorData.message || 'Failed to delete auction');
         }
       } catch (error) {
         console.error('Error deleting auction:', error);
-        alert('Error deleting auction. Please try again.');
+        Swal.close();
+        showToast(`Error deleting auction: ${error.message}`, 'error');
       }
     }
   };
@@ -1562,35 +1970,134 @@ const AuctionManagement = ({ onMenuClick }) => {
     }));
   };
 
+  // Helper function to check if auction is active/ongoing
+  const isAuctionActive = (auction) => {
+    const now = new Date();
+    const startDateTime = new Date(`${auction.startDate}T${auction.startTime}`);
+    const endDateTime = new Date(`${auction.endDate}T${auction.endTime}`);
+    return now >= startDateTime && now <= endDateTime;
+  };
+
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     
     if (!selectedAuction) return;
 
+    // Validate form data - at least one field must have a value
+    if (!editFormData.description.trim() && (!editFormData.incrementValue || editFormData.incrementValue <= 0)) {
+      alert('Please provide at least one field to update (description or increment value)');
+      return;
+    }
+
+    // Validate increment value if provided
+    if (editFormData.incrementValue && editFormData.incrementValue <= 0) {
+      alert('Increment value must be a positive number');
+      return;
+    }
+
+    // Show confirmation modal for update
+    const updateResult = await Swal.fire({
+      title: 'Update Auction',
+      html: `
+        <div class="text-center">
+          <div class="mb-4">
+            <div class="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center mb-4">
+              <svg class="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+              </svg>
+            </div>
+            <h3 class="text-lg font-semibold text-gray-900 mb-2">${selectedAuction.auctionTitle}</h3>
+            <p class="text-sm text-gray-600 mb-4">Update auction details</p>
+          </div>
+        </div>
+      `,
+      showCancelButton: true,
+      confirmButtonText: 'Yes, Update Auction',
+      cancelButtonText: 'Cancel',
+      confirmButtonColor: '#2563eb',
+      cancelButtonColor: '#6b7280',
+      reverseButtons: true,
+      focusCancel: true,
+      customClass: {
+        popup: 'swal2-popup-custom',
+        title: 'swal2-title-custom',
+        content: 'swal2-content-custom',
+        confirmButton: 'swal2-confirm-custom',
+        cancelButton: 'swal2-cancel-custom'
+      }
+    });
+
+    if (!updateResult.isConfirmed) {
+      return;
+    }
+
     try {
-      const response = await fetch(`http://localhost:3002/api/auctions/${selectedAuction._id}`, {
+      // Prepare update data - only include fields that have values
+      const updateData = {};
+      
+      if (editFormData.description.trim()) {
+        updateData.description = editFormData.description.trim();
+      }
+      
+      if (editFormData.incrementValue && editFormData.incrementValue > 0) {
+        updateData.incrementValue = parseInt(editFormData.incrementValue);
+      }
+
+      // Ensure at least one field is being updated
+      if (Object.keys(updateData).length === 0) {
+        showToast('Please provide at least one field to update', 'error');
+        return;
+      }
+
+      console.log('Updating auction with data:', updateData);
+
+      // Show loading state
+      Swal.fire({
+        title: 'Updating Auction...',
+        text: 'Please wait while we update the auction',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
+        showConfirmButton: false,
+        didOpen: () => {
+          Swal.showLoading();
+        }
+      });
+
+      const response = await fetch(`http://localhost:3002/api/auctions/${selectedAuction._id}/update`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          description: editFormData.description,
-          incrementValue: parseInt(editFormData.incrementValue)
-        })
+        body: JSON.stringify(updateData)
       });
 
       if (response.ok) {
-        alert('Auction updated successfully!');
+        console.log('Auction updated successfully');
+        Swal.close();
+        showToast('Auction updated successfully!', 'success');
         setEditModalOpen(false);
         fetchUpcomingAuctions(); // Refresh the list
       } else {
-        throw new Error('Failed to update auction');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to update auction');
       }
     } catch (error) {
       console.error('Error updating auction:', error);
-      alert('Error updating auction. Please try again.');
+      Swal.close();
+      showToast(`Error updating auction: ${error.message}`, 'error');
     }
   };
+
+  // If showing participants view, render that instead
+  if (showParticipantsView && selectedAuction) {
+    return (
+      <AuctionParticipantsView
+        auction={selectedAuction}
+        participants={participants}
+        onBack={() => setShowParticipantsView(false)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -1670,9 +2177,6 @@ const AuctionManagement = ({ onMenuClick }) => {
                       <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs font-medium rounded-full">
                         {auction.spiceType}
                       </span>
-                      <span className="px-2 py-1 bg-orange-100 text-orange-800 text-xs font-medium rounded-full">
-                        {auction.status}
-                      </span>
                     </div>
                   </div>
                 </div>
@@ -1697,14 +2201,22 @@ const AuctionManagement = ({ onMenuClick }) => {
                 </div>
 
                 <div className="mt-4 pt-4 border-t border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <button
-                      onClick={() => handleViewDetails(auction)}
-                      className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors mr-2"
-                    >
-                      View Details
-                    </button>
+                  <div className="flex flex-col space-y-2">
                     <div className="flex space-x-2">
+                      <button
+                        onClick={() => handleViewDetails(auction)}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+                      >
+                        View Details
+                      </button>
+                      <button
+                        onClick={() => handleViewParticipants(auction)}
+                        className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
+                      >
+                        View Participants
+                      </button>
+                    </div>
+                    <div className="flex space-x-2 justify-end">
                       <button
                         onClick={() => handleEditAuction(auction)}
                         className="p-2 text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
@@ -1714,8 +2226,13 @@ const AuctionManagement = ({ onMenuClick }) => {
                       </button>
                       <button
                         onClick={() => handleDeleteAuction(auction)}
-                        className="p-2 text-gray-600 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                        title="Delete Auction"
+                        className={`p-2 rounded-lg transition-colors ${
+                          isAuctionActive(auction)
+                            ? 'text-gray-400 cursor-not-allowed bg-gray-100'
+                            : 'text-gray-600 hover:text-red-600 hover:bg-red-50'
+                        }`}
+                        title={isAuctionActive(auction) ? 'Cannot delete active auction' : 'Delete Auction'}
+                        disabled={isAuctionActive(auction)}
                       >
                         <FaTrash className="w-4 h-4" />
                       </button>
@@ -1766,12 +2283,6 @@ const AuctionManagement = ({ onMenuClick }) => {
                       <div className="flex justify-between">
                         <span className="text-gray-600">Spice Type:</span>
                         <span className="font-medium">{selectedAuction.spiceType}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span className="text-gray-600">Status:</span>
-                        <span className="px-2 py-1 bg-orange-100 text-orange-800 text-sm font-medium rounded-full">
-                          {selectedAuction.status}
-                        </span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-gray-600">Increment Value:</span>
@@ -1855,10 +2366,16 @@ const AuctionManagement = ({ onMenuClick }) => {
                 </button>
                 <button
                   onClick={() => handleDeleteAuction(selectedAuction)}
-                  className="px-6 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors flex items-center space-x-2"
+                  className={`px-6 py-2 rounded-lg transition-colors flex items-center space-x-2 ${
+                    isAuctionActive(selectedAuction)
+                      ? 'bg-gray-400 cursor-not-allowed text-white'
+                      : 'bg-red-600 hover:bg-red-700 text-white'
+                  }`}
+                  disabled={isAuctionActive(selectedAuction)}
+                  title={isAuctionActive(selectedAuction) ? 'Cannot delete active auction' : 'Delete Auction'}
                 >
                   <FaTrash className="w-4 h-4" />
-                  <span>Delete Auction</span>
+                  <span>{isAuctionActive(selectedAuction) ? 'Cannot Delete (Active)' : 'Delete Auction'}</span>
                 </button>
                 <button
                   onClick={() => setModalOpen(false)}
@@ -1893,11 +2410,17 @@ const AuctionManagement = ({ onMenuClick }) => {
 
               {/* Edit Form */}
               <form onSubmit={handleEditSubmit} className="space-y-6">
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+                  <p className="text-sm text-blue-800">
+                    <strong>Note:</strong> You can update the description and/or increment value. At least one field must be provided. 
+                    The auction must not be active/ongoing to be updated.
+                  </p>
+                </div>
                 <div className="grid grid-cols-1 gap-6">
                   {/* Description Field */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Description
+                      Description <span className="text-gray-500">(optional)</span>
                     </label>
                     <textarea
                       name="description"
@@ -1906,14 +2429,13 @@ const AuctionManagement = ({ onMenuClick }) => {
                       rows={4}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
                       placeholder="Enter auction description..."
-                      required
                     />
                   </div>
 
                   {/* Increment Value Field */}
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Increment Value (₹)
+                      Increment Value (₹) <span className="text-gray-500">(optional)</span>
                     </label>
                     <input
                       type="number"
@@ -1923,7 +2445,6 @@ const AuctionManagement = ({ onMenuClick }) => {
                       min="1"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Enter minimum bid increment..."
-                      required
                     />
                   </div>
                 </div>
@@ -1973,12 +2494,220 @@ const AuctionManagement = ({ onMenuClick }) => {
           </div>
         </div>
       )}
+
+    </div>
+  );
+};
+
+// Auction Participants View Component
+const AuctionParticipantsView = ({ auction, participants, onBack }) => {
+  const formatDate = (dateString, timeString) => {
+    if (!dateString) return 'N/A';
+    try {
+      const date = new Date(dateString);
+      let dateStr = date.toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric'
+      });
+      if (timeString) {
+        dateStr += ` at ${timeString}`;
+      }
+      return dateStr;
+    } catch {
+      return 'Invalid Date';
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header with Back Button */}
+      <div className="flex items-center space-x-4">
+        <button
+          onClick={onBack}
+          className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+        >
+          <svg className="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+          </svg>
+        </button>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Auction Participants</h1>
+          <p className="text-gray-600">View all farmers who joined this auction</p>
+        </div>
+      </div>
+
+      {/* Auction Details Card */}
+      <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+        <h2 className="text-xl font-bold text-gray-900 mb-6 flex items-center">
+          <FaGavel className="mr-2 text-emerald-600" />
+          Auction Details
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div>
+            <label className="text-sm font-medium text-gray-600">Auction Title</label>
+            <p className="text-lg font-semibold text-gray-900">{auction.auctionTitle}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600">Spice Type</label>
+            <p className="text-lg font-semibold text-gray-900">{auction.spiceType}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600">Start Date</label>
+            <p className="text-lg font-semibold text-gray-900">{formatDate(auction.startDate, auction.startTime)}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600">End Date</label>
+            <p className="text-lg font-semibold text-gray-900">{formatDate(auction.endDate, auction.endTime)}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600">Current Bid</label>
+            <p className="text-lg font-semibold text-blue-600">₹{auction.currentBid?.toLocaleString() || '0'}</p>
+          </div>
+          <div>
+            <label className="text-sm font-medium text-gray-600">Increment Value</label>
+            <p className="text-lg font-semibold text-emerald-600">₹{auction.incrementValue?.toLocaleString()}</p>
+          </div>
+        </div>
+        {auction.description && (
+          <div className="mt-6 pt-6 border-t border-gray-200">
+            <label className="text-sm font-medium text-gray-600">Description</label>
+            <p className="text-gray-900 mt-2">{auction.description}</p>
+          </div>
+        )}
+      </div>
+
+      {/* Participants List */}
+      <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-xl font-bold text-gray-900 flex items-center">
+            <FaUsers className="mr-2 text-emerald-600" />
+            Participants ({participants.length})
+          </h2>
+        </div>
+
+        {participants.length === 0 ? (
+          <div className="text-center py-12">
+            <FaUsers className="text-gray-400 text-5xl mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Participants Yet</h3>
+            <p className="text-gray-600">No farmers have joined this auction yet.</p>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {participants.map((participant, index) => (
+              <div key={participant._id || index} className="bg-gray-50 rounded-xl p-6 border border-gray-200">
+                <div className="flex items-start space-x-6">
+                  {/* Inventory Image */}
+                  {participant.inventoryItem?.spiceImage && (
+                    <div className="flex-shrink-0">
+                      <img
+                        src={
+                          participant.inventoryItem.spiceImage.startsWith('http')
+                            ? participant.inventoryItem.spiceImage
+                            : `http://localhost:3001${participant.inventoryItem.spiceImage}`
+                        }
+                        alt={participant.inventoryItem.spiceName}
+                        className="w-32 h-32 object-cover rounded-lg border-2 border-emerald-300"
+                      />
+                    </div>
+                  )}
+
+                  {/* Participant Details */}
+                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* Farmer Information */}
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                        <FaUser className="mr-2 text-emerald-600" />
+                        Farmer Details
+                      </h3>
+                      {participant.farmer ? (
+                        <div className="space-y-2 text-sm">
+                          <div>
+                            <span className="text-gray-600">Name:</span>
+                            <p className="font-medium text-gray-900">
+                              {participant.farmer.fullName || participant.farmer.name || 'N/A'}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Email:</span>
+                            <p className="font-medium text-gray-900">
+                              {participant.farmer.emailAddress || participant.farmer.email || 'N/A'}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Phone:</span>
+                            <p className="font-medium text-gray-900">
+                              {participant.farmer.contactNumber || participant.farmer.phoneNumber || 'N/A'}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Location:</span>
+                            <p className="font-medium text-gray-900">
+                              {participant.farmer.district && participant.farmer.state 
+                                ? `${participant.farmer.district}, ${participant.farmer.state} - ${participant.farmer.pincode || ''}`
+                                : 'N/A'}
+                            </p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Verification:</span>
+                            <span className={`ml-2 px-2 py-1 text-xs rounded-full font-medium ${
+                              participant.farmer.isVerified 
+                                ? 'bg-green-100 text-green-800' 
+                                : 'bg-yellow-100 text-yellow-800'
+                            }`}>
+                              {participant.farmer.isVerified ? 'Verified' : 'Unverified'}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">Farmer details not available</p>
+                      )}
+                    </div>
+
+                    {/* Inventory Information */}
+                    <div>
+                      <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                        <FaBox className="mr-2 text-emerald-600" />
+                        Inventory Details
+                      </h3>
+                      {participant.inventoryItem ? (
+                        <div className="space-y-2 text-sm">
+                          <div>
+                            <span className="text-gray-600">Spice Name:</span>
+                            <p className="font-medium text-gray-900">{participant.inventoryItem.spiceName}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Weight:</span>
+                            <p className="font-medium text-gray-900">{participant.inventoryItem.weight} kg</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Grade:</span>
+                            <p className="font-medium text-emerald-700">{participant.inventoryItem.grade}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-600">Status:</span>
+                            <span className="ml-2 px-2 py-1 bg-yellow-100 text-yellow-800 text-xs rounded-full font-medium">
+                              {participant.inventoryItem.status}
+                            </span>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500">Inventory details not available</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
 // Create Auction Component
-const CreateAuction = () => {
+const CreateAuction = ({ showToast }) => {
   const [formData, setFormData] = useState({
     spiceType: 'Cardamom',
     title: '',
@@ -2171,7 +2900,7 @@ const CreateAuction = () => {
       const result = await response.json();
       console.log('Auction created successfully:', result);
       
-      alert('Auction created successfully!');
+      showToast('Auction created successfully!', 'success');
       setFormData({
         spiceType: 'Cardamom',
         title: '',
@@ -2390,10 +3119,10 @@ const OngoingAuctions = () => {
   const [auctions, setAuctions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-
-  useEffect(() => {
-    fetchAuctions();
-  }, []);
+  const [selectedAuction, setSelectedAuction] = useState(null);
+  const [showParticipantsView, setShowParticipantsView] = useState(false);
+  const [participants, setParticipants] = useState([]);
+  const [modalOpen, setModalOpen] = useState(false);
 
   const fetchAuctions = async () => {
     try {
@@ -2408,13 +3137,13 @@ const OngoingAuctions = () => {
       
       const data = await response.json();
       
-      // Filter only active/ongoing auctions
+      // Filter only active/ongoing auctions based on current time (exclude "End Auction" status)
       const activeAuctions = data.filter(auction => {
         const now = new Date();
-        const startDateTime = new Date(`${auction.startDate}T${auction.startTime}`);
-        const endDateTime = new Date(`${auction.endDate}T${auction.endTime}`);
+        const startDate = new Date(auction.startDate);
+        const endDate = new Date(auction.endDate);
         
-        return now >= startDateTime && now <= endDateTime;
+        return now >= startDate && now <= endDate && auction.status !== 'End Auction';
       });
       
       setAuctions(activeAuctions);
@@ -2426,9 +3155,20 @@ const OngoingAuctions = () => {
     }
   };
 
-  const calculateTimeLeft = (endDate, endTime) => {
+  useEffect(() => {
+    fetchAuctions();
+    
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchAuctions();
+    }, 30000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  const calculateTimeLeft = (endDate) => {
     const now = new Date();
-    const endDateTime = new Date(`${endDate}T${endTime}`);
+    const endDateTime = new Date(endDate);
     const diff = endDateTime - now;
     
     if (diff <= 0) return 'Ended';
@@ -2443,17 +3183,152 @@ const OngoingAuctions = () => {
     }
   };
 
-  const handleIntervene = (auctionId) => {
-    if (confirm('Are you sure you want to intervene in this auction?')) {
-      console.log('Intervening in auction:', auctionId);
-      // Implement intervention logic
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const handleViewDetails = (auction) => {
+    setSelectedAuction(auction);
+    setModalOpen(true);
+  };
+
+  const handleViewParticipants = async (auction) => {
+    try {
+      setSelectedAuction(auction);
+      const auctionId = auction._id || auction.id;
+      
+      // Fetch participants for this auction
+      const joinData = await auctionAPI.getJoinAuctionsByAuctionId(auctionId);
+      
+      // Fetch all farmers once
+      let allFarmersData = [];
+      try {
+        const response = await authAPI.getAllFarmers();
+        allFarmersData = response.data.farmers || [];
+      } catch (error) {
+        console.error('Error fetching all farmers:', error);
+      }
+      
+      // Fetch inventory and farmer details for each participant
+      const participantsWithInventory = await Promise.all(
+        joinData.map(async (join) => {
+          let inventoryItem = null;
+          let farmer = null;
+          
+          // Fetch inventory item
+          try {
+            inventoryItem = await inventoryAPI.getInventoryItem(join.inventoryId);
+          } catch (error) {
+            console.error('Error fetching inventory for participant:', error);
+          }
+          
+          // Find farmer from the pre-fetched list
+          if (Array.isArray(allFarmersData) && allFarmersData.length > 0) {
+            farmer = allFarmersData.find(f => f._id === join.farmerId || f.id === join.farmerId);
+          }
+          
+          return {
+            ...join,
+            inventoryItem,
+            farmer
+          };
+        })
+      );
+      
+      setParticipants(participantsWithInventory);
+      setShowParticipantsView(true);
+    } catch (error) {
+      console.error('Error fetching participants:', error);
+      Swal.fire('Error', 'Failed to load participants', 'error');
     }
   };
 
-  const handleEndAuction = (auctionId) => {
-    if (confirm('Are you sure you want to end this auction early?')) {
-      console.log('Ending auction:', auctionId);
-      // Implement end auction logic
+  const handleIntervene = async (auctionId) => {
+    const result = await Swal.fire({
+      title: 'Intervene in Auction?',
+      text: 'Are you sure you want to intervene in this auction?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#d97706',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, intervene',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        console.log('Updating auction status to "Intervene" for ID:', auctionId);
+        await auctionAPI.updateAuctionStatus(auctionId, 'Intervene');
+        Swal.fire('Success!', 'Auction status updated to Intervene', 'success');
+        fetchAuctions(); // Refresh the auctions list
+      } catch (error) {
+        console.error('Error intervening in auction:', error);
+        console.error('Error response:', error.response?.data);
+        const errorMsg = error.response?.data?.error || 'Failed to intervene in auction';
+        Swal.fire('Error!', errorMsg, 'error');
+      }
+    }
+  };
+
+  const handleEndAuction = async (auctionId) => {
+    const result = await Swal.fire({
+      title: 'End Auction?',
+      text: 'Are you sure you want to end this auction early?',
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#dc2626',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, end it',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        console.log('Updating auction status to "End Auction" for ID:', auctionId);
+        await auctionAPI.updateAuctionStatus(auctionId, 'End Auction');
+        Swal.fire('Success!', 'Auction status updated to End Auction', 'success');
+        fetchAuctions(); // Refresh the auctions list
+      } catch (error) {
+        console.error('Error ending auction:', error);
+        console.error('Error response:', error.response?.data);
+        const errorMsg = error.response?.data?.error || 'Failed to end auction';
+        Swal.fire('Error!', errorMsg, 'error');
+      }
+    }
+  };
+
+  const handleRestartAuction = async (auctionId) => {
+    const result = await Swal.fire({
+      title: 'Restart Auction?',
+      text: 'This will remove the Intervene status and allow the auction to continue.',
+      icon: 'question',
+      showCancelButton: true,
+      confirmButtonColor: '#10b981',
+      cancelButtonColor: '#6b7280',
+      confirmButtonText: 'Yes, restart',
+      cancelButtonText: 'Cancel'
+    });
+
+    if (result.isConfirmed) {
+      try {
+        console.log('Restarting auction (removing Intervene status) for ID:', auctionId);
+        await auctionAPI.updateAuctionStatus(auctionId, null);
+        Swal.fire('Success!', 'Auction has been restarted', 'success');
+        fetchAuctions(); // Refresh the auctions list
+      } catch (error) {
+        console.error('Error restarting auction:', error);
+        console.error('Error response:', error.response?.data);
+        const errorMsg = error.response?.data?.error || 'Failed to restart auction';
+        Swal.fire('Error!', errorMsg, 'error');
+      }
     }
   };
 
@@ -2486,6 +3361,17 @@ const OngoingAuctions = () => {
     );
   }
 
+  // If showing participants view, render that instead
+  if (showParticipantsView && selectedAuction) {
+    return (
+      <AuctionParticipantsView
+        auction={selectedAuction}
+        participants={participants}
+        onBack={() => setShowParticipantsView(false)}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -2494,8 +3380,16 @@ const OngoingAuctions = () => {
           <h1 className="text-2xl font-bold text-gray-900">Ongoing Auctions</h1>
           <p className="text-gray-600">Monitor live bids and manage active auctions</p>
         </div>
-        <div className="text-sm text-gray-500">
-          {auctions.length} active auctions
+        <div className="flex items-center space-x-4">
+          <div className="text-sm text-gray-500">
+            {auctions.length} active auction{auctions.length !== 1 ? 's' : ''}
+          </div>
+          <button
+            onClick={fetchAuctions}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          >
+            Refresh
+          </button>
         </div>
       </div>
 
@@ -2507,14 +3401,25 @@ const OngoingAuctions = () => {
               <div className="flex-1">
                 <div className="flex items-center space-x-3 mb-2">
                   <h3 className="text-xl font-bold text-gray-900">{auction.auctionTitle}</h3>
-                  <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                    Active
-                  </span>
+                  {!auction.status || auction.status === null ? (
+                    <span className="px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                      Active
+                    </span>
+                  ) : auction.status === 'Intervene' ? (
+                    <span className="px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800 flex items-center space-x-1">
+                      <FaExclamationTriangle className="w-3 h-3" />
+                      <span>Intervene</span>
+                    </span>
+                  ) : auction.status === 'End Auction' ? (
+                    <span className="px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                      End Auction
+                    </span>
+                  ) : null}
                 </div>
                 <div className="flex items-center space-x-6 text-sm text-gray-600">
                   <span>Spice: {auction.spiceType}</span>
                   <span>Increment: ₹{auction.incrementValue}</span>
-                  <span>Ends: {new Date(`${auction.endDate}T${auction.endTime}`).toLocaleString()}</span>
+                  <span>Ends: {formatDateTime(auction.endDate)}</span>
                 </div>
               </div>
               <div className="text-right">
@@ -2527,7 +3432,7 @@ const OngoingAuctions = () => {
               <div className="bg-gray-50 rounded-lg p-4">
                 <div className="text-sm text-gray-600">Time Left</div>
                 <div className="text-lg font-semibold text-orange-600">
-                  {calculateTimeLeft(auction.endDate, auction.endTime)}
+                  {calculateTimeLeft(auction.endDate)}
                 </div>
               </div>
               <div className="bg-gray-50 rounded-lg p-4">
@@ -2546,25 +3451,51 @@ const OngoingAuctions = () => {
 
             <div className="flex items-center justify-between">
               <div className="flex space-x-3">
-                <button
-                  onClick={() => handleIntervene(auction._id || auction.id)}
-                  className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors flex items-center space-x-2"
-                >
-                  <FaExclamationTriangle className="w-4 h-4" />
-                  <span>Intervene</span>
-                </button>
-                <button
-                  onClick={() => handleEndAuction(auction._id || auction.id)}
-                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
-                >
-                  <FaTimesCircle className="w-4 h-4" />
-                  <span>End Auction</span>
-                </button>
+                {auction.status === 'Intervene' ? (
+                  <button
+                    onClick={() => handleRestartAuction(auction._id || auction.id)}
+                    className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center space-x-2"
+                  >
+                    <FaRedo className="w-4 h-4" />
+                    <span>Restart</span>
+                  </button>
+                ) : auction.status === 'End Auction' ? null : (
+                  <>
+                    <button
+                      onClick={() => handleIntervene(auction._id || auction.id)}
+                      className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 transition-colors flex items-center space-x-2"
+                    >
+                      <FaExclamationTriangle className="w-4 h-4" />
+                      <span>Intervene</span>
+                    </button>
+                    <button
+                      onClick={() => handleEndAuction(auction._id || auction.id)}
+                      className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center space-x-2"
+                    >
+                      <FaTimesCircle className="w-4 h-4" />
+                      <span>End Auction</span>
+                    </button>
+                  </>
+                )}
               </div>
-              <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2">
-                <FaEye className="w-4 h-4" />
-                <span>View Details</span>
-              </button>
+              {auction.status !== 'End Auction' && (
+                <div className="flex space-x-3">
+                  <button 
+                    onClick={() => handleViewParticipants(auction)}
+                    className="px-4 py-2 bg-emerald-600 text-white rounded-lg hover:bg-emerald-700 transition-colors flex items-center space-x-2"
+                  >
+                    <FaUsers className="w-4 h-4" />
+                    <span>View Participants</span>
+                  </button>
+                  <button 
+                    onClick={() => handleViewDetails(auction)}
+                    className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center space-x-2"
+                  >
+                    <FaEye className="w-4 h-4" />
+                    <span>View Details</span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -2577,64 +3508,224 @@ const OngoingAuctions = () => {
           <p className="text-gray-600">There are currently no ongoing auctions.</p>
         </div>
       )}
+
+      {/* Auction Details Modal */}
+      {modalOpen && selectedAuction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Auction Details</h2>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <FaTimes className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Auction Title</label>
+                    <p className="text-lg font-semibold text-gray-900">{selectedAuction.auctionTitle}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Spice Type</label>
+                    <p className="text-lg font-semibold text-gray-900">{selectedAuction.spiceType}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Current Bid</label>
+                    <p className="text-lg font-semibold text-blue-600">₹{selectedAuction.currentBid || '0'}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Increment Value</label>
+                    <p className="text-lg font-semibold text-emerald-600">₹{selectedAuction.incrementValue}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Start Date</label>
+                    <p className="text-gray-900">{formatDateTime(selectedAuction.startDate)}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">End Date</label>
+                    <p className="text-gray-900">{formatDateTime(selectedAuction.endDate)}</p>
+                  </div>
+                </div>
+                {selectedAuction.description && (
+                  <div className="mt-4">
+                    <label className="text-sm font-medium text-gray-600">Description</label>
+                    <p className="text-gray-900 mt-2">{selectedAuction.description}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 // Auction Results Component
 const AuctionResults = () => {
-  const [results, setResults] = useState([
-    {
-      id: 1,
-      title: 'Premium Cardamom - Grade A',
-      farmer: 'Rajesh Kumar',
-      winner: 'Spice Traders Ltd',
-      finalBid: 3200,
-      quantity: '50 kg',
-      status: 'settled',
-      endDate: '2024-01-15',
-      commission: 160
-    },
-    {
-      id: 2,
-      title: 'Organic Turmeric',
-      farmer: 'Priya Sharma',
-      winner: 'Organic Foods Co',
-      finalBid: 2100,
-      quantity: '100 kg',
-      status: 'pending',
-      endDate: '2024-01-14',
-      commission: 105
-    },
-    {
-      id: 3,
-      title: 'Black Pepper - Premium',
-      farmer: 'Amit Patel',
-      winner: 'Export House',
-      finalBid: 3800,
-      quantity: '75 kg',
-      status: 'settled',
-      endDate: '2024-01-13',
-      commission: 190
-    }
-  ]);
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedAuction, setSelectedAuction] = useState(null);
+  const [showParticipantsView, setShowParticipantsView] = useState(false);
+  const [participants, setParticipants] = useState([]);
+  const [modalOpen, setModalOpen] = useState(false);
 
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'settled': return 'bg-green-100 text-green-800';
-      case 'pending': return 'bg-yellow-100 text-yellow-800';
-      case 'disputed': return 'bg-red-100 text-red-800';
-      default: return 'bg-gray-100 text-gray-800';
+  useEffect(() => {
+    fetchCompletedAuctions();
+  }, []);
+
+  const fetchCompletedAuctions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch('http://localhost:3002/api/auctions');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch auctions');
+      }
+      
+      const data = await response.json();
+      
+      // Filter completed auctions (end date passed or status "End Auction")
+      const completed = data.filter(auction => {
+        const now = new Date();
+        const endDateTime = new Date(auction.endDate);
+        
+        return auction.status === 'End Auction' || endDateTime < now;
+      });
+      
+      setResults(completed);
+    } catch (error) {
+      console.error('Error fetching completed auctions:', error);
+      setError('Failed to load completed auctions');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleSettle = (resultId) => {
-    if (confirm('Mark this auction as settled?')) {
-      setResults(results.map(r => 
-        r.id === resultId ? {...r, status: 'settled'} : r
-      ));
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const handleViewDetails = (auction) => {
+    setSelectedAuction(auction);
+    setModalOpen(true);
+  };
+
+  const handleViewParticipants = async (auction) => {
+    try {
+      setSelectedAuction(auction);
+      const auctionId = auction._id || auction.id;
+      
+      // Fetch participants for this auction
+      const joinData = await auctionAPI.getJoinAuctionsByAuctionId(auctionId);
+      
+      // Fetch all farmers once
+      let allFarmersData = [];
+      try {
+        const response = await authAPI.getAllFarmers();
+        allFarmersData = response.data.farmers || [];
+      } catch (error) {
+        console.error('Error fetching all farmers:', error);
+      }
+      
+      // Fetch inventory and farmer details for each participant
+      const participantsWithInventory = await Promise.all(
+        joinData.map(async (join) => {
+          let inventoryItem = null;
+          let farmer = null;
+          
+          // Fetch inventory item
+          try {
+            inventoryItem = await inventoryAPI.getInventoryItem(join.inventoryId);
+          } catch (error) {
+            console.error('Error fetching inventory for participant:', error);
+          }
+          
+          // Find farmer from the pre-fetched list
+          if (Array.isArray(allFarmersData) && allFarmersData.length > 0) {
+            farmer = allFarmersData.find(f => f._id === join.farmerId || f.id === join.farmerId);
+          }
+          
+          return {
+            ...join,
+            inventoryItem,
+            farmer
+          };
+        })
+      );
+      
+      setParticipants(participantsWithInventory);
+      setShowParticipantsView(true);
+    } catch (error) {
+      console.error('Error fetching participants:', error);
+      Swal.fire('Error', 'Failed to load participants', 'error');
     }
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading completed auctions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Auctions</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={fetchCompletedAuctions}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // If showing participants view, render that instead
+  if (showParticipantsView && selectedAuction) {
+    return (
+      <AuctionParticipantsView
+        auction={selectedAuction}
+        participants={participants}
+        onBack={() => setShowParticipantsView(false)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -2644,50 +3735,60 @@ const AuctionResults = () => {
           <h1 className="text-2xl font-bold text-gray-900">Auction Results</h1>
           <p className="text-gray-600">View winners and manage settlement status</p>
         </div>
-        <div className="text-sm text-gray-500">
-          {results.length} completed auctions
+        <div className="flex items-center space-x-4">
+          <div className="text-sm text-gray-500">
+            {results.length} completed auctions
+          </div>
+          <button
+            onClick={fetchCompletedAuctions}
+            className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+          >
+            Refresh
+          </button>
         </div>
       </div>
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-        <div className="bg-gradient-to-r from-green-500 to-green-600 text-white p-6 rounded-xl shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-green-100 text-sm font-medium">Settled</p>
-              <p className="text-3xl font-bold">{results.filter(r => r.status === 'settled').length}</p>
-            </div>
-            <FaCheckCircle className="w-8 h-8 text-green-200" />
-          </div>
-        </div>
-
-        <div className="bg-gradient-to-r from-yellow-500 to-yellow-600 text-white p-6 rounded-xl shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-yellow-100 text-sm font-medium">Pending</p>
-              <p className="text-3xl font-bold">{results.filter(r => r.status === 'pending').length}</p>
-            </div>
-            <FaClock className="w-8 h-8 text-yellow-200" />
-          </div>
-        </div>
-
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-blue-100 text-sm font-medium">Total Revenue</p>
-              <p className="text-3xl font-bold">₹{results.reduce((sum, r) => sum + r.finalBid, 0).toLocaleString()}</p>
+              <p className="text-blue-100 text-sm font-medium">Total Completed</p>
+              <p className="text-3xl font-bold">{results.length}</p>
             </div>
-            <FaRupeeSign className="w-8 h-8 text-blue-200" />
+            <FaTrophy className="w-8 h-8 text-blue-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-red-500 to-red-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-red-100 text-sm font-medium">Ended Early</p>
+              <p className="text-3xl font-bold">{results.filter(r => r.status === 'End Auction').length}</p>
+            </div>
+            <FaTimesCircle className="w-8 h-8 text-red-200" />
           </div>
         </div>
 
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-100 text-sm font-medium">Commission</p>
-              <p className="text-3xl font-bold">₹{results.reduce((sum, r) => sum + r.commission, 0).toLocaleString()}</p>
+              <p className="text-purple-100 text-sm font-medium">Avg Final Bid</p>
+              <p className="text-3xl font-bold">
+                ₹{results.length > 0 ? Math.round(results.reduce((sum, r) => sum + (r.currentBid || 0), 0) / results.length).toLocaleString() : '0'}
+              </p>
             </div>
-            <FaChartBar className="w-8 h-8 text-purple-200" />
+            <FaRupeeSign className="w-8 h-8 text-purple-200" />
+          </div>
+        </div>
+
+        <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-emerald-100 text-sm font-medium">Total Value</p>
+              <p className="text-3xl font-bold">₹{results.reduce((sum, r) => sum + (r.currentBid || 0), 0).toLocaleString()}</p>
+            </div>
+            <FaChartBar className="w-8 h-8 text-emerald-200" />
           </div>
         </div>
       </div>
@@ -2699,118 +3800,317 @@ const AuctionResults = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Auction</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Winner</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spice Type</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Final Bid</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Increment</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {results.map((result) => (
-                <tr key={result.id} className="hover:bg-gray-50">
+              {results.map((auction) => (
+                <tr key={auction._id || auction.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">{result.title}</div>
-                      <div className="text-sm text-gray-500">Farmer: {result.farmer}</div>
+                      <div className="text-sm font-medium text-gray-900">{auction.auctionTitle}</div>
+                      <div className="text-sm text-gray-500">{auction.description || 'No description'}</div>
                     </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {result.winner}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
+                      {auction.spiceType}
+                    </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">₹{result.finalBid}</div>
-                    <div className="text-sm text-gray-500">Commission: ₹{result.commission}</div>
+                    <div className="text-sm font-medium text-blue-600">₹{(auction.currentBid || 0).toLocaleString()}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {result.quantity}
+                    ₹{auction.incrementValue}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getStatusColor(result.status)}`}>
-                      {result.status}
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      auction.status === 'End Auction' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                    }`}>
+                      {auction.status === 'End Auction' ? 'Ended Early' : 'Completed'}
                     </span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(result.endDate).toLocaleDateString()}
+                    {formatDate(auction.endDate)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    {result.status === 'pending' && (
-                      <button
-                        onClick={() => handleSettle(result.id)}
-                        className="text-green-600 hover:text-green-900 mr-3"
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => handleViewDetails(auction)}
+                        className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
                       >
-                        Settle
+                        <FaEye className="w-4 h-4" />
+                        <span>Details</span>
                       </button>
-                    )}
-                    <button className="text-blue-600 hover:text-blue-900">
-                      View Details
-                    </button>
+                      <button 
+                        onClick={() => handleViewParticipants(auction)}
+                        className="text-emerald-600 hover:text-emerald-900 flex items-center space-x-1"
+                      >
+                        <FaUsers className="w-4 h-4" />
+                        <span>Participants</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {results.length === 0 && (
+          <div className="text-center py-12">
+            <FaTrophy className="text-gray-400 text-5xl mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Completed Auctions</h3>
+            <p className="text-gray-600">There are no completed auctions to display yet.</p>
+          </div>
+        )}
       </div>
+
+      {/* Auction Details Modal */}
+      {modalOpen && selectedAuction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Auction Details</h2>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <FaTimes className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Auction Title</label>
+                    <p className="text-lg font-semibold text-gray-900">{selectedAuction.auctionTitle}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Spice Type</label>
+                    <p className="text-lg font-semibold text-gray-900">{selectedAuction.spiceType}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Final Bid</label>
+                    <p className="text-lg font-semibold text-blue-600">₹{(selectedAuction.currentBid || 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Increment Value</label>
+                    <p className="text-lg font-semibold text-emerald-600">₹{selectedAuction.incrementValue}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Start Date</label>
+                    <p className="text-gray-900">{formatDateTime(selectedAuction.startDate)}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">End Date</label>
+                    <p className="text-gray-900">{formatDateTime(selectedAuction.endDate)}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Status</label>
+                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                      selectedAuction.status === 'End Auction' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                    }`}>
+                      {selectedAuction.status === 'End Auction' ? 'Ended Early' : 'Completed'}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Bidders</label>
+                    <p className="text-lg font-semibold text-gray-900">{selectedAuction.bidders || 0}</p>
+                  </div>
+                </div>
+                {selectedAuction.description && (
+                  <div className="mt-4">
+                    <label className="text-sm font-medium text-gray-600">Description</label>
+                    <p className="text-gray-900 mt-2">{selectedAuction.description}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
 // Auction History Component
 const AuctionHistory = () => {
-  const [history] = useState([
-    {
-      id: 1,
-      title: 'Premium Cardamom - Grade A',
-      farmer: 'Rajesh Kumar',
-      winner: 'Spice Traders Ltd',
-      finalBid: 3200,
-      quantity: '50 kg',
-      endDate: '2024-01-15',
-      duration: '24h',
-      totalBids: 45,
-      revenue: 160000
-    },
-    {
-      id: 2,
-      title: 'Organic Turmeric',
-      farmer: 'Priya Sharma',
-      winner: 'Organic Foods Co',
-      finalBid: 2100,
-      quantity: '100 kg',
-      endDate: '2024-01-14',
-      duration: '18h',
-      totalBids: 32,
-      revenue: 210000
-    },
-    {
-      id: 3,
-      title: 'Black Pepper - Premium',
-      farmer: 'Amit Patel',
-      winner: 'Export House',
-      finalBid: 3800,
-      quantity: '75 kg',
-      endDate: '2024-01-13',
-      duration: '36h',
-      totalBids: 67,
-      revenue: 285000
-    }
-  ]);
-
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedAuction, setSelectedAuction] = useState(null);
+  const [showParticipantsView, setShowParticipantsView] = useState(false);
+  const [participants, setParticipants] = useState([]);
+  const [modalOpen, setModalOpen] = useState(false);
   const [filter, setFilter] = useState('all');
   const [dateRange, setDateRange] = useState('30');
 
-  const filteredHistory = history.filter(item => {
+  useEffect(() => {
+    fetchCompletedAuctions();
+  }, []);
+
+  const fetchCompletedAuctions = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const response = await fetch('http://localhost:3002/api/auctions');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch auctions');
+      }
+      
+      const data = await response.json();
+      
+      // Filter completed auctions (end date passed or status "End Auction")
+      const completed = data.filter(auction => {
+        const now = new Date();
+        const endDateTime = new Date(auction.endDate);
+        
+        return auction.status === 'End Auction' || endDateTime < now;
+      });
+      
+      setHistory(completed);
+    } catch (error) {
+      console.error('Error fetching completed auctions:', error);
+      setError('Failed to load completed auctions');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredHistory = history.filter(auction => {
     if (filter === 'all') return true;
-    if (filter === 'high-value') return item.finalBid > 3000;
-    if (filter === 'recent') return new Date(item.endDate) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    if (filter === 'high-value') return (auction.currentBid || 0) > 3000;
+    if (filter === 'recent') return new Date(auction.endDate) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
     return true;
   });
 
-  const totalRevenue = history.reduce((sum, item) => sum + item.revenue, 0);
-  const totalBids = history.reduce((sum, item) => sum + item.totalBids, 0);
-  const averageBid = totalBids > 0 ? (totalRevenue / totalBids).toFixed(0) : 0;
+  const totalRevenue = history.reduce((sum, auction) => sum + (auction.currentBid || 0), 0);
+  const totalBids = history.reduce((sum, auction) => sum + (auction.bidders || 0), 0);
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    });
+  };
+
+  const formatDateTime = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
+  };
+
+  const handleViewDetails = (auction) => {
+    setSelectedAuction(auction);
+    setModalOpen(true);
+  };
+
+  const handleViewParticipants = async (auction) => {
+    try {
+      setSelectedAuction(auction);
+      const auctionId = auction._id || auction.id;
+      
+      // Fetch participants for this auction
+      const joinData = await auctionAPI.getJoinAuctionsByAuctionId(auctionId);
+      
+      // Fetch all farmers once
+      let allFarmersData = [];
+      try {
+        const response = await authAPI.getAllFarmers();
+        allFarmersData = response.data.farmers || [];
+      } catch (error) {
+        console.error('Error fetching all farmers:', error);
+      }
+      
+      // Fetch inventory and farmer details for each participant
+      const participantsWithInventory = await Promise.all(
+        joinData.map(async (join) => {
+          let inventoryItem = null;
+          let farmer = null;
+          
+          // Fetch inventory item
+          try {
+            inventoryItem = await inventoryAPI.getInventoryItem(join.inventoryId);
+          } catch (error) {
+            console.error('Error fetching inventory for participant:', error);
+          }
+          
+          // Find farmer from the pre-fetched list
+          if (Array.isArray(allFarmersData) && allFarmersData.length > 0) {
+            farmer = allFarmersData.find(f => f._id === join.farmerId || f.id === join.farmerId);
+          }
+          
+          return {
+            ...join,
+            inventoryItem,
+            farmer
+          };
+        })
+      );
+      
+      setParticipants(participantsWithInventory);
+      setShowParticipantsView(true);
+    } catch (error) {
+      console.error('Error fetching participants:', error);
+      Swal.fire('Error', 'Failed to load participants', 'error');
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading auction history...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="text-center">
+          <div className="text-red-500 text-6xl mb-4">⚠️</div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">Error Loading Auctions</h3>
+          <p className="text-gray-600 mb-4">{error}</p>
+          <button 
+            onClick={fetchCompletedAuctions}
+            className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg transition-colors"
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // If showing participants view, render that instead
+  if (showParticipantsView && selectedAuction) {
+    return (
+      <AuctionParticipantsView
+        auction={selectedAuction}
+        participants={participants}
+        onBack={() => setShowParticipantsView(false)}
+      />
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -2820,6 +4120,12 @@ const AuctionHistory = () => {
           <h1 className="text-2xl font-bold text-gray-900">Auction History & Reports</h1>
           <p className="text-gray-600">Analytics and insights from past auctions</p>
         </div>
+        <button
+          onClick={fetchCompletedAuctions}
+          className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors text-sm font-medium"
+        >
+          Refresh
+        </button>
       </div>
 
       {/* Analytics Cards */}
@@ -2838,7 +4144,7 @@ const AuctionHistory = () => {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-green-100 text-sm font-medium">Total Revenue</p>
-              <p className="text-3xl font-bold">₹{(totalRevenue / 100000).toFixed(1)}L</p>
+              <p className="text-3xl font-bold">₹{totalRevenue > 100000 ? (totalRevenue / 100000).toFixed(1) + 'L' : totalRevenue.toLocaleString()}</p>
             </div>
             <FaRupeeSign className="w-8 h-8 text-green-200" />
           </div>
@@ -2847,7 +4153,7 @@ const AuctionHistory = () => {
         <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-purple-100 text-sm font-medium">Total Bids</p>
+              <p className="text-purple-100 text-sm font-medium">Total Bidders</p>
               <p className="text-3xl font-bold">{totalBids}</p>
             </div>
             <FaChartLine className="w-8 h-8 text-purple-200" />
@@ -2857,8 +4163,8 @@ const AuctionHistory = () => {
         <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-6 rounded-xl shadow-lg">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-orange-100 text-sm font-medium">Avg Bid</p>
-              <p className="text-3xl font-bold">₹{averageBid}</p>
+              <p className="text-orange-100 text-sm font-medium">Avg Final Bid</p>
+              <p className="text-3xl font-bold">₹{history.length > 0 ? Math.round(totalRevenue / history.length).toLocaleString() : '0'}</p>
             </div>
             <FaChartBar className="w-8 h-8 text-orange-200" />
           </div>
@@ -2908,50 +4214,80 @@ const AuctionHistory = () => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Auction</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Winner</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Final Bid</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duration</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Bids</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Increment</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bidders</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Value</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredHistory.map((item) => (
-                <tr key={item.id} className="hover:bg-gray-50">
+              {filteredHistory.map((auction) => (
+                <tr key={auction._id || auction.id} className="hover:bg-gray-50">
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
-                      <div className="text-sm font-medium text-gray-900">{item.title}</div>
-                      <div className="text-sm text-gray-500">Farmer: {item.farmer}</div>
+                      <div className="text-sm font-medium text-gray-900">{auction.auctionTitle}</div>
+                      <div className="text-sm text-gray-500">{auction.spiceType}</div>
                     </div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {item.winner}
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                      auction.status === 'End Auction' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                    }`}>
+                      {auction.status === 'End Auction' ? 'Ended Early' : 'Completed'}
+                    </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                    ₹{item.finalBid}
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
+                    ₹{(auction.currentBid || 0).toLocaleString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {item.quantity}
+                    ₹{auction.incrementValue}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {item.duration}
+                    {formatDate(auction.startDate)}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {item.totalBids}
+                    {auction.bidders || 0}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
-                    ₹{item.revenue.toLocaleString()}
+                    ₹{(auction.currentBid || 0).toLocaleString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                    {new Date(item.endDate).toLocaleDateString()}
+                    {formatDate(auction.endDate)}
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <div className="flex space-x-2">
+                      <button 
+                        onClick={() => handleViewDetails(auction)}
+                        className="text-blue-600 hover:text-blue-900 flex items-center space-x-1"
+                      >
+                        <FaEye className="w-4 h-4" />
+                        <span>Details</span>
+                      </button>
+                      <button 
+                        onClick={() => handleViewParticipants(auction)}
+                        className="text-emerald-600 hover:text-emerald-900 flex items-center space-x-1"
+                      >
+                        <FaUsers className="w-4 h-4" />
+                        <span>Participants</span>
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
+        {filteredHistory.length === 0 && (
+          <div className="text-center py-12">
+            <FaHistory className="text-gray-400 text-5xl mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-gray-900 mb-2">No Auction History</h3>
+            <p className="text-gray-600">There are no completed auctions to display yet.</p>
+          </div>
+        )}
       </div>
 
       {/* Charts Section */}
@@ -2976,6 +4312,72 @@ const AuctionHistory = () => {
           </div>
         </div>
       </div>
+
+      {/* Auction Details Modal */}
+      {modalOpen && selectedAuction && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Auction Details</h2>
+                <button
+                  onClick={() => setModalOpen(false)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <FaTimes className="w-6 h-6" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Auction Title</label>
+                    <p className="text-lg font-semibold text-gray-900">{selectedAuction.auctionTitle}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Spice Type</label>
+                    <p className="text-lg font-semibold text-gray-900">{selectedAuction.spiceType}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Final Bid</label>
+                    <p className="text-lg font-semibold text-blue-600">₹{(selectedAuction.currentBid || 0).toLocaleString()}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Increment Value</label>
+                    <p className="text-lg font-semibold text-emerald-600">₹{selectedAuction.incrementValue}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Start Date</label>
+                    <p className="text-gray-900">{formatDateTime(selectedAuction.startDate)}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">End Date</label>
+                    <p className="text-gray-900">{formatDateTime(selectedAuction.endDate)}</p>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Status</label>
+                    <span className={`inline-flex px-2 py-1 rounded-full text-xs font-medium ${
+                      selectedAuction.status === 'End Auction' ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                    }`}>
+                      {selectedAuction.status === 'End Auction' ? 'Ended Early' : 'Completed'}
+                    </span>
+                  </div>
+                  <div>
+                    <label className="text-sm font-medium text-gray-600">Bidders</label>
+                    <p className="text-lg font-semibold text-gray-900">{selectedAuction.bidders || 0}</p>
+                  </div>
+                </div>
+                {selectedAuction.description && (
+                  <div className="mt-4">
+                    <label className="text-sm font-medium text-gray-600">Description</label>
+                    <p className="text-gray-900 mt-2">{selectedAuction.description}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

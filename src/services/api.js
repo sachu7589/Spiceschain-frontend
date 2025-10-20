@@ -300,10 +300,11 @@ const getDayName = (dateString) => {
     // Full datetime string from database
     date = new Date(dateString);
   } else {
-    // Date-only string
+    // Date-only string (YYYY-MM-DD format)
     date = new Date(dateString + 'T00:00:00');
   }
   
+  // Ensure we're using Indian timezone for day calculation
   const dayName = date.toLocaleDateString('en-US', { 
     weekday: 'short', 
     timeZone: 'Asia/Kolkata' 
@@ -313,13 +314,13 @@ const getDayName = (dateString) => {
 };
 
 // Helper function to process daily prices from API response
-const processDailyPrices = (apiData, days = 6) => {
+const processDailyPrices = (apiData, days = 7) => {
   if (!apiData || !Array.isArray(apiData) || apiData.length === 0) {
     return generateMockDailyPrices(days);
   }
 
-  // Sort data by date_time (newest first)
-  const sortedData = apiData.sort((a, b) => new Date(b.date_time) - new Date(a.date_time));
+  // Sort data by date_time (oldest first for proper chronological order)
+  const sortedData = apiData.sort((a, b) => new Date(a.date_time) - new Date(b.date_time));
   
   // Group by date and calculate daily averages
   const dailyGroups = {};
@@ -344,32 +345,49 @@ const processDailyPrices = (apiData, days = 6) => {
     dailyGroups[date].max_amounts.push(item.max_amount);
   });
 
-  // Convert to daily price format and sort by date
-  const dailyPrices = Object.keys(dailyGroups)
-    .sort()
-    .map(date => {
-      const group = dailyGroups[date];
+  // Create a 7-day array with available data
+  const today = new Date();
+  const sevenDaysData = [];
+  
+  for (let i = 6; i >= 0; i--) {
+    const date = new Date(today);
+    date.setDate(date.getDate() - i);
+    const dateString = date.toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' });
+    
+    if (dailyGroups[dateString]) {
+      // We have data for this date
+      const group = dailyGroups[dateString];
       const avgPrice = group.prices.reduce((sum, price) => sum + price, 0) / group.prices.length;
       const minPrice = Math.min(...group.min_amounts);
       const maxPrice = Math.max(...group.max_amounts);
       
-      return {
-        date: date,
-        day: getDayName(date),
-        price: Math.round(avgPrice * 100) / 100, // Round to 2 decimal places
+      sevenDaysData.push({
+        date: dateString,
+        day: getDayName(dateString),
+        price: Math.round(avgPrice * 100) / 100,
         avg_amount: Math.round(avgPrice * 100) / 100,
         min_amount: Math.round(minPrice * 100) / 100,
-        max_amount: Math.round(maxPrice * 100) / 100
-      };
-    });
-
-  // If we have data, return it (even if it's just one day)
-  // If no data, return mock data
-  if (dailyPrices.length > 0) {
-    return dailyPrices;
-  } else {
-    return generateMockDailyPrices(days);
+        max_amount: Math.round(maxPrice * 100) / 100,
+        hasData: true
+      });
+    } else {
+      // No data for this date
+      sevenDaysData.push({
+        date: dateString,
+        day: getDayName(dateString),
+        price: null,
+        avg_amount: null,
+        min_amount: null,
+        max_amount: null,
+        hasData: false
+      });
+    }
   }
+
+  console.log('Processed 7-day data:', sevenDaysData);
+
+  // Return the 7-day data structure
+  return sevenDaysData;
 };
 
 // Helper function to process daily prices by date range
@@ -623,7 +641,7 @@ export const inventoryAPI = {
 
   // Update specific fields only (PATCH)
   updateInventoryStatus: async (itemId, status) => {
-    const response = await inventoryApi.patch(`/api/inventory/${itemId}`, {
+    const response = await inventoryApi.patch(`/api/inventory/${itemId}/status`, {
       status: status
     }, {
       headers: {
@@ -644,6 +662,83 @@ export const inventoryAPI = {
     const response = await inventoryApi.get('/api/inventory');
     return response.data;
   }
+};
+
+// Create separate axios instance for Auction API
+const auctionApi = axios.create({
+  baseURL: 'http://localhost:3002',
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Add request interceptor for debugging
+auctionApi.interceptors.request.use(
+  (config) => {
+    console.log('Auction API Request:', {
+      url: config.url,
+      method: config.method,
+      data: config.data,
+      headers: config.headers
+    });
+    return config;
+  },
+  (error) => {
+    return Promise.reject(error);
+  }
+);
+
+// Add response interceptor for debugging
+auctionApi.interceptors.response.use(
+  (response) => {
+    console.log('Auction API Response:', response.data);
+    return response;
+  },
+  (error) => {
+    console.error('Auction API Error:', {
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+    return Promise.reject(error);
+  }
+);
+
+// Auction API functions
+export const auctionAPI = {
+  // Get all auctions
+  getAllAuctions: async () => {
+    const response = await auctionApi.get('/api/auctions');
+    return response.data;
+  },
+
+  // Get upcoming auctions
+  getUpcomingAuctions: async () => {
+    const response = await auctionApi.get('/api/auctions');
+    return response.data;
+  },
+
+  // Update auction status
+  updateAuctionStatus: async (auctionId, status) => {
+    const response = await auctionApi.put(`/api/auctions/${auctionId}/update`, { status });
+    return response.data;
+  },
+
+  // Join auction
+  joinAuction: async (farmerId, inventoryId, auctionId) => {
+    const response = await auctionApi.post('/api/join-auctions/create', {
+      farmerId,
+      inventoryId,
+      auctionId
+    });
+    return response.data;
+  },
+
+  // Get join auction details by auction ID
+  getJoinAuctionsByAuctionId: async (auctionId) => {
+    const response = await auctionApi.get(`/api/join-auctions/auction/${auctionId}`);
+    return response.data;
+  },
 };
 
 export default api; 
