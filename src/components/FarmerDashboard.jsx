@@ -63,13 +63,13 @@ const FarmerDashboard = () => {
   const renderDashboardContent = () => {
     switch (activeMenu) {
       case 'dashboard':
-        return <FarmerDashboardOverview user={user} navigate={navigate} />;
+        return <FarmerDashboardOverview user={user} navigate={navigate} onMenuChange={setActiveMenu} />;
       case 'inventory':
         return <InventoryManagement user={user} />;
       case 'auction':
         return <AuctionList />;
       default:
-        return <FarmerDashboardOverview user={user} navigate={navigate} />;
+        return <FarmerDashboardOverview user={user} navigate={navigate} onMenuChange={setActiveMenu} />;
     }
   };
 
@@ -566,11 +566,13 @@ const WeatherWidget = ({ user }) => {
 };
 
 // Farmer Dashboard Content Components
-const FarmerDashboardOverview = ({ user, navigate }) => {
+const FarmerDashboardOverview = ({ user, navigate, onMenuChange }) => {
   const isVerified = user?.isVerified || false;
   const [cardamomData, setCardamomData] = useState(null);
   const [latestPrice, setLatestPrice] = useState(null);
   const [dailyPrices, setDailyPrices] = useState([]);
+  const [ongoingAuctions, setOngoingAuctions] = useState([]);
+  const [notifications, setNotifications] = useState([]);
 
   // Fetch cardamom data from API
   useEffect(() => {
@@ -625,18 +627,91 @@ const FarmerDashboardOverview = ({ user, navigate }) => {
     fetchCardamomData();
   }, []);
 
-  const ongoingAuctions = [
-    { id: 'A001', spice: 'Cardamom (Green)', quantity: '50kg', currentBid: '₹3,200', timeLeft: '2h 15m', bidders: 8 },
-    { id: 'A002', spice: 'Black Pepper', quantity: '100kg', currentBid: '₹450', timeLeft: '4h 30m', bidders: 12 },
-    { id: 'A003', spice: 'Cinnamon', quantity: '75kg', currentBid: '₹280', timeLeft: '1h 45m', bidders: 5 },
-  ];
+  // Fetch ongoing auctions that the farmer has joined
+  useEffect(() => {
+    const fetchOngoingAuctions = async () => {
+      try {
+        const allAuctions = await auctionAPI.getUpcomingAuctions();
+        const now = new Date();
+        
+        // Filter for active auctions
+        const active = allAuctions.filter(auction => {
+          const startDate = new Date(auction.startDate);
+          const endDate = new Date(auction.endDate);
+          return now >= startDate && now <= endDate && auction.status !== 'End Auction';
+        });
 
-  const notifications = [
-    { id: 1, type: 'auction', title: 'Auction A001 ending soon', message: 'Your cardamom auction has 2 hours left', time: '2m ago', unread: true },
-    { id: 2, type: 'payment', title: 'Payment received', message: '₹15,600 received for Black Pepper sale', time: '1h ago', unread: true },
-    { id: 3, type: 'auction', title: 'New bid on your auction', message: 'A002 received a bid of ₹450/kg', time: '3h ago', unread: false },
-    { id: 4, type: 'weather', title: 'Weather alert', message: 'Heavy rain expected in your area', time: '5h ago', unread: false },
-  ];
+        // Check which ones the user has joined
+        const joinedActiveAuctions = [];
+        for (const auction of active) {
+          try {
+            const joinData = await auctionAPI.getJoinAuctionsByAuctionId(auction._id || auction.id);
+            const hasJoined = joinData.some(join => join.farmerId === user.id);
+            if (hasJoined) {
+              // Calculate time left
+              const endDate = new Date(auction.endDate);
+              const timeLeft = endDate - now;
+              const hoursLeft = Math.floor(timeLeft / (1000 * 60 * 60));
+              const minutesLeft = Math.floor((timeLeft % (1000 * 60 * 60)) / (1000 * 60));
+              
+              joinedActiveAuctions.push({
+                id: auction._id || auction.id,
+                spice: auction.spiceType,
+                title: auction.auctionTitle,
+                currentBid: `₹${(auction.currentBid || 0).toLocaleString()}`,
+                timeLeft: timeLeft > 0 ? `${hoursLeft}h ${minutesLeft}m` : 'Ending soon',
+                bidders: auction.bidders || 0,
+                endDate: auction.endDate
+              });
+            }
+          } catch (error) {
+            console.error('Error checking auction join status:', error);
+          }
+        }
+
+        setOngoingAuctions(joinedActiveAuctions);
+
+        // Generate notifications based on auctions
+        const newNotifications = [];
+        joinedActiveAuctions.forEach((auction, index) => {
+          const endDate = new Date(auction.endDate);
+          const timeLeft = endDate - now;
+          const hoursLeft = Math.floor(timeLeft / (1000 * 60 * 60));
+
+          if (hoursLeft <= 2) {
+            newNotifications.push({
+              id: `auction-${index}`,
+              type: 'auction',
+              title: 'Auction ending soon!',
+              message: `${auction.title} ends in ${auction.timeLeft}`,
+              time: 'Just now',
+              unread: true
+            });
+          } else if (hoursLeft <= 6) {
+            newNotifications.push({
+              id: `auction-${index}`,
+              type: 'auction',
+              title: 'Auction update',
+              message: `${auction.title} has ${auction.timeLeft} remaining`,
+              time: 'Recent',
+              unread: false
+            });
+          }
+        });
+
+        setNotifications(newNotifications);
+      } catch (error) {
+        console.error('Error fetching ongoing auctions:', error);
+      }
+    };
+
+    if (user?.id) {
+      fetchOngoingAuctions();
+      // Refresh every minute
+      const interval = setInterval(fetchOngoingAuctions, 60000);
+      return () => clearInterval(interval);
+    }
+  }, [user?.id]);
 
 
   return (
@@ -842,34 +917,43 @@ const FarmerDashboardOverview = ({ user, navigate }) => {
           <div className="lg:col-span-2 bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">Ongoing Auctions Summary</h3>
-              <button className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors">
+              <button 
+                onClick={() => onMenuChange && onMenuChange('auction')}
+                className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+              >
                 View All
               </button>
             </div>
             <div className="space-y-4">
-              {ongoingAuctions.map((auction) => (
-                <div key={auction.id} className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
-                  <div className="flex items-center justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center space-x-3 mb-2">
-                        <span className="font-semibold text-gray-900">{auction.spice}</span>
-                        <span className="text-sm text-gray-600">({auction.quantity})</span>
+              {ongoingAuctions.length === 0 ? (
+                <div className="text-center py-8">
+                  <svg className="w-16 h-16 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+                  </svg>
+                  <p className="text-gray-500 text-sm">No active auctions</p>
+                  <p className="text-gray-400 text-xs mt-1">Join upcoming auctions to see them here</p>
+                </div>
+              ) : (
+                ongoingAuctions.map((auction) => (
+                  <div key={auction.id} className="bg-gradient-to-r from-gray-50 to-gray-100 rounded-xl p-4 border border-gray-200">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center space-x-3 mb-2">
+                          <span className="font-semibold text-gray-900">{auction.title}</span>
+                          <span className="text-sm text-gray-600">({auction.spice})</span>
+                        </div>
+                        <div className="flex items-center space-x-4 text-sm text-gray-600">
+                          <span>Current Bid: <span className="font-semibold text-blue-700">{auction.currentBid}</span></span>
+                          <span>•</span>
+                          <span>{auction.bidders} bidders</span>
+                          <span>•</span>
+                          <span className="text-orange-600 font-medium">{auction.timeLeft} left</span>
+                        </div>
                       </div>
-                      <div className="flex items-center space-x-4 text-sm text-gray-600">
-                        <span>Current: <span className="font-semibold text-gray-900">{auction.currentBid}/kg</span></span>
-                        <span>•</span>
-                        <span>{auction.bidders} bidders</span>
-                        <span>•</span>
-                        <span className="text-orange-600 font-medium">{auction.timeLeft} left</span>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-xs text-gray-500">Auction ID</span>
-                      <p className="text-sm font-mono text-gray-700">{auction.id}</p>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
@@ -877,31 +961,43 @@ const FarmerDashboardOverview = ({ user, navigate }) => {
           <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
             <div className="flex items-center justify-between mb-6">
               <h3 className="text-xl font-bold text-gray-900">Notifications</h3>
-              <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
-                {notifications.filter(n => n.unread).length} new
-              </span>
+              {notifications.filter(n => n.unread).length > 0 && (
+                <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">
+                  {notifications.filter(n => n.unread).length} new
+                </span>
+              )}
             </div>
             <div className="space-y-3">
-              {notifications.map((notification) => (
-                <div key={notification.id} className={`p-3 rounded-lg border ${
-                  notification.unread 
-                    ? 'bg-blue-50 border-blue-200' 
-                    : 'bg-gray-50 border-gray-200'
-                }`}>
-                  <div className="flex items-start space-x-3">
-                    <div className={`w-2 h-2 rounded-full mt-2 ${
-                      notification.type === 'auction' ? 'bg-orange-500' :
-                      notification.type === 'payment' ? 'bg-green-500' :
-                      'bg-blue-500'
-                    }`}></div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
-                      <p className="text-xs text-gray-600 mt-1">{notification.message}</p>
-                      <p className="text-xs text-gray-400 mt-1">{notification.time}</p>
+              {notifications.length === 0 ? (
+                <div className="text-center py-8">
+                  <svg className="w-16 h-16 text-gray-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                  </svg>
+                  <p className="text-gray-500 text-sm">No notifications</p>
+                  <p className="text-gray-400 text-xs mt-1">You're all caught up!</p>
+                </div>
+              ) : (
+                notifications.map((notification) => (
+                  <div key={notification.id} className={`p-3 rounded-lg border ${
+                    notification.unread 
+                      ? 'bg-blue-50 border-blue-200' 
+                      : 'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className="flex items-start space-x-3">
+                      <div className={`w-2 h-2 rounded-full mt-2 ${
+                        notification.type === 'auction' ? 'bg-orange-500' :
+                        notification.type === 'payment' ? 'bg-green-500' :
+                        'bg-blue-500'
+                      }`}></div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
+                        <p className="text-xs text-gray-600 mt-1">{notification.message}</p>
+                        <p className="text-xs text-gray-400 mt-1">{notification.time}</p>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </div>
@@ -912,23 +1008,32 @@ const FarmerDashboardOverview = ({ user, navigate }) => {
           <div className="bg-white/80 backdrop-blur-xl rounded-2xl shadow-lg border border-white/30 p-8">
             <h3 className="text-xl font-bold text-gray-900 mb-6">Quick Links</h3>
             <div className="space-y-4">
-              <button className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white p-4 rounded-xl flex items-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+              <button 
+                onClick={() => onMenuChange && onMenuChange('inventory')}
+                className="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white p-4 rounded-xl flex items-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                 </svg>
                 <span className="font-semibold">Add Inventory</span>
               </button>
-              <button className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white p-4 rounded-xl flex items-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+              <button 
+                onClick={() => onMenuChange && onMenuChange('auction')}
+                className="w-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white p-4 rounded-xl flex items-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span className="font-semibold">Start Auction</span>
+                <span className="font-semibold">Browse Auctions</span>
               </button>
-              <button className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white p-4 rounded-xl flex items-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5">
+              <button 
+                onClick={() => onMenuChange && onMenuChange('dashboard')}
+                className="w-full bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-600 hover:to-indigo-600 text-white p-4 rounded-xl flex items-center space-x-3 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:-translate-y-0.5"
+              >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                 </svg>
-                <span className="font-semibold">View Analytics</span>
+                <span className="font-semibold">View Dashboard</span>
               </button>
             </div>
           </div>
