@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import InventoryManagement from './InventoryManagement';
-import { spicePricesAPI, weatherAPI, locationAPI, auctionAPI, inventoryAPI } from '../services/api';
+import { spicePricesAPI, weatherAPI, locationAPI, auctionAPI, inventoryAPI, authAPI } from '../services/api';
 import Swal from 'sweetalert2';
 import {
   Chart as ChartJS,
@@ -53,7 +53,8 @@ const FarmerDashboard = () => {
 
   const handleMenuClick = (menu) => {
     // Check if user is verified for restricted menus
-    if ((menu === 'inventory' || menu === 'auction') && !user?.isVerified) {
+    const restrictedMenus = ['inventory', 'auction', 'ongoing-auctions', 'completed-auctions', 'bank-details', 'payments'];
+    if (restrictedMenus.includes(menu) && !user?.isVerified) {
       setShowVerificationModal(true);
       return;
     }
@@ -68,6 +69,14 @@ const FarmerDashboard = () => {
         return <InventoryManagement user={user} />;
       case 'auction':
         return <AuctionList />;
+      case 'ongoing-auctions':
+        return <FarmerOngoingAuctions user={user} />;
+      case 'completed-auctions':
+        return <FarmerCompletedAuctions user={user} />;
+      case 'bank-details':
+        return <FarmerBankDetails user={user} />;
+      case 'payments':
+        return <FarmerPayments user={user} />;
       default:
         return <FarmerDashboardOverview user={user} navigate={navigate} onMenuChange={setActiveMenu} />;
     }
@@ -77,6 +86,10 @@ const FarmerDashboard = () => {
     { id: 'dashboard', label: 'Dashboard', icon: 'grid', active: true },
     { id: 'inventory', label: 'Inventory', icon: 'inventory', active: false },
     { id: 'auction', label: 'Auction', icon: 'auction', active: false },
+    { id: 'ongoing-auctions', label: 'Ongoing Auctions', icon: 'briefcase', active: false },
+    { id: 'completed-auctions', label: 'Completed Auctions', icon: 'trophy', active: false },
+    { id: 'bank-details', label: 'Bank Details', icon: 'bank', active: false },
+    { id: 'payments', label: 'Payments Received', icon: 'payment', active: false },
   ];
 
   const getIcon = (iconName) => {
@@ -94,6 +107,26 @@ const FarmerDashboard = () => {
       auction: (
         <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z" />
+        </svg>
+      ),
+      briefcase: (
+        <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+        </svg>
+      ),
+      trophy: (
+        <svg className="w-5 h-5 text-current" fill="currentColor" viewBox="0 0 20 20">
+          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+        </svg>
+      ),
+      bank: (
+        <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+        </svg>
+      ),
+      payment: (
+        <svg className="w-5 h-5 text-current" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
         </svg>
       ),
       logout: (
@@ -142,25 +175,18 @@ const FarmerDashboard = () => {
 
         {/* Navigation Menu */}
         <nav className={`${sidebarCollapsed ? 'p-4' : 'p-6'} space-y-2`}>
-          {menuItems.map((item) => {
-            const isRestricted = (item.id === 'inventory' || item.id === 'auction') && !user?.isVerified;
-            return (
+          {menuItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => item.action ? item.action() : handleMenuClick(item.id)}
-                disabled={isRestricted}
                 className={`w-full flex items-center ${sidebarCollapsed ? 'justify-center' : 'space-x-4'} ${sidebarCollapsed ? 'px-2 py-3' : 'px-4 py-3'} rounded-xl transition-all duration-200 group ${
-                  isRestricted
-                    ? 'opacity-50 cursor-not-allowed text-gray-400'
-                    : activeMenu === item.id
+                  activeMenu === item.id
                     ? 'bg-emerald-50 text-emerald-800 border border-emerald-200 shadow-sm'
                     : 'text-gray-600 hover:bg-white/80 hover:text-gray-900 hover:shadow-md'
                 }`}
               >
                 <span className={`flex-shrink-0 ${sidebarCollapsed ? 'p-2' : 'p-2'} rounded-lg transition-all duration-200 ${
-                  isRestricted
-                    ? 'bg-gray-100 text-gray-400'
-                    : activeMenu === item.id
+                  activeMenu === item.id
                     ? 'bg-emerald-100 text-emerald-700 shadow-sm'
                     : 'bg-gray-100 group-hover:bg-emerald-50 group-hover:shadow-sm'
                 }`}>
@@ -169,14 +195,8 @@ const FarmerDashboard = () => {
                 {!sidebarCollapsed && (
                   <span className="text-sm font-medium">{item.label}</span>
                 )}
-                {!sidebarCollapsed && isRestricted && (
-                  <svg className="w-4 h-4 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
-                  </svg>
-                )}
               </button>
-            );
-          })}
+          ))}
         </nav>
 
         {/* User Profile and Logout */}
@@ -1081,6 +1101,7 @@ const AuctionList = () => {
   const [joinedAuctions, setJoinedAuctions] = useState(new Set());
   const [showDetailsModal, setShowDetailsModal] = useState(false);
   const [auctionDetails, setAuctionDetails] = useState(null);
+  const [showBankDetailsModal, setShowBankDetailsModal] = useState(false);
 
   useEffect(() => {
     const fetchAuctions = async () => {
@@ -1192,9 +1213,57 @@ const AuctionList = () => {
   ];
 
   // Handle Join Auction button click
-  const handleJoinAuction = (auction) => {
-    setSelectedAuction(auction);
-    setShowInventorySelection(true);
+  const handleJoinAuction = async (auction) => {
+    try {
+      // Check if bank details exist
+      const bankDetailsResponse = await authAPI.getFarmerBankDetails(user.id);
+      
+      if (!bankDetailsResponse.success || !bankDetailsResponse.data || !bankDetailsResponse.data.bankDetails) {
+        // Show bank details modal
+        Swal.fire({
+          icon: 'warning',
+          title: 'Bank Details Required',
+          text: 'Please add your bank account details before joining auctions',
+          confirmButtonText: 'Add Bank Details',
+          confirmButtonColor: '#10b981',
+          showCancelButton: true,
+        }).then((result) => {
+          if (result.isConfirmed) {
+            // Show bank details modal
+            setShowBankDetailsModal(true);
+          }
+        });
+        return;
+      }
+
+      // If bank details exist, proceed to inventory selection
+      setSelectedAuction(auction);
+      setShowInventorySelection(true);
+    } catch (error) {
+      // If error is 404, bank details don't exist
+      if (error.response?.status === 404) {
+        Swal.fire({
+          icon: 'warning',
+          title: 'Bank Details Required',
+          text: 'Please add your bank account details before joining auctions',
+          confirmButtonText: 'Add Bank Details',
+          confirmButtonColor: '#10b981',
+          showCancelButton: true,
+        }).then((result) => {
+          if (result.isConfirmed) {
+            setShowBankDetailsModal(true);
+          }
+        });
+      } else {
+        console.error('Error checking bank details:', error);
+        Swal.fire({
+          icon: 'error',
+          title: 'Error',
+          text: 'Failed to check bank details. Please try again.',
+          confirmButtonColor: '#ef4444'
+        });
+      }
+    }
   };
 
   // Handle confirm selection
@@ -1268,10 +1337,42 @@ const AuctionList = () => {
         // Fetch the inventory item details
         const inventoryItem = await inventoryAPI.getInventoryItem(userJoin.inventoryId);
         
+        // Fetch winner info for completed auctions
+        let winner = null;
+        let bids = [];
+        const dynamicStatus = getDynamicStatus(auction);
+        
+        if (dynamicStatus === 'completed') {
+          try {
+            const bidsResponse = await auctionAPI.getBidsByInventoryId(userJoin.inventoryId);
+            bids = bidsResponse || [];
+            
+            if (bids.length > 0) {
+              // Find highest bid
+              const highestBidAmount = Math.max(...bids.map(b => b.currentBidPrice || 0));
+              const winningBid = bids.find(b => b.currentBidPrice === highestBidAmount);
+              
+              if (winningBid) {
+                // Fetch winner details
+                const buyersResponse = await authAPI.getAllBuyers();
+                const allBuyers = buyersResponse.data?.buyers || buyersResponse.data || buyersResponse || [];
+                winner = allBuyers.find(b => (b._id || b.id) === winningBid.buyerId);
+                if (winner) {
+                  winner = { ...winner, bidAmount: winningBid.currentBidPrice };
+                }
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching winner info:', error);
+          }
+        }
+        
         setAuctionDetails({
           auction: auction,
           inventoryItem: inventoryItem,
-          joinData: userJoin
+          joinData: userJoin,
+          winner: winner,
+          totalBids: bids.length
         });
         setShowDetailsModal(true);
       } else {
@@ -1519,6 +1620,24 @@ const AuctionList = () => {
         <AuctionDetailsModal
           auctionDetails={auctionDetails}
           onClose={() => setShowDetailsModal(false)}
+        />
+      )}
+
+      {showBankDetailsModal && (
+        <BankDetailsModal
+          isOpen={showBankDetailsModal}
+          onClose={() => setShowBankDetailsModal(false)}
+          user={user}
+          onSuccess={() => {
+            setShowBankDetailsModal(false);
+            Swal.fire({
+              icon: 'success',
+              title: 'Success!',
+              text: 'Bank details added. You can now join auctions.',
+              confirmButtonColor: '#10b981'
+            });
+          }}
+          existingData={null}
         />
       )}
     </div>
@@ -1797,7 +1916,7 @@ const InventorySelectionModal = ({ auction, onClose, onConfirm }) => {
 
 // Auction Details Modal Component
 const AuctionDetailsModal = ({ auctionDetails, onClose }) => {
-  const { auction, inventoryItem } = auctionDetails;
+  const { auction, inventoryItem, winner, totalBids } = auctionDetails;
 
   const formatDate = (dateString) => {
     if (!dateString) return 'N/A';
@@ -1916,18 +2035,905 @@ const AuctionDetailsModal = ({ auctionDetails, onClose }) => {
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Footer */}
-        <div className="p-6 border-t border-gray-200 bg-gray-50">
-          <button
-            onClick={onClose}
-            className="w-full px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg font-medium transition-colors"
-          >
-            Close
-          </button>
+          {/* Winner Information (for completed auctions) */}
+          {winner && (
+            <div className="mt-6">
+              <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center">
+                <svg className="w-5 h-5 mr-2 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                Winner Details
+              </h3>
+              <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg p-5 text-white">
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <p className="text-green-100 text-sm mb-1">🏆 Auction Winner</p>
+                    <p className="text-xl font-bold">{winner.fullName || winner.name || 'Unknown Buyer'}</p>
+                    <p className="text-green-100 text-sm mt-1">{winner.emailAddress || winner.email || 'No email'}</p>
+                    {winner.contactNumber && (
+                      <p className="text-green-100 text-sm mt-1">📞 {winner.contactNumber}</p>
+                    )}
+        </div>
+                  <div className="text-right">
+                    <p className="text-green-100 text-sm mb-1">Winning Bid</p>
+                    <p className="text-3xl font-bold">₹{(winner.bidAmount || 0).toLocaleString()}</p>
+                  </div>
+                </div>
+                {totalBids > 0 && (
+                  <div className="mt-3 pt-3 border-t border-green-400">
+                    <p className="text-green-100 text-sm">
+                      Total Bids Received: <span className="font-semibold">{totalBids}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       </div>
+    </div>
+  );
+};
+
+// Farmer Ongoing Auctions Component
+const FarmerOngoingAuctions = ({ user }) => {
+  const [myAuctions, setMyAuctions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchOngoingAuctions = async () => {
+      try {
+        setLoading(true);
+        const farmerId = user?.id || user?._id;
+
+        // Get farmer's inventory
+        const inventoryResponse = await inventoryAPI.getInventoryByUser(farmerId);
+        const farmerInventory = inventoryResponse || [];
+
+        // For each inventory, check if joined any auction and fetch bids
+        const auctionsWithBids = await Promise.all(
+          farmerInventory.map(async (inventory) => {
+            const inventoryId = inventory._id || inventory.id;
+            
+            // Get all bids for this inventory
+            let bids = [];
+            try {
+              const bidsResponse = await auctionAPI.getBidsByInventoryId(inventoryId);
+              bids = bidsResponse || [];
+              
+              // Fetch buyer details for each bid
+              const bidsWithBuyers = await Promise.all(
+                bids.map(async (bid) => {
+                  let buyer = null;
+                  try {
+                    const buyerResponse = await authAPI.getAllBuyers();
+                    const allBuyers = buyerResponse.data?.buyers || buyerResponse.data || buyerResponse || [];
+                    buyer = allBuyers.find(b => (b._id || b.id) === bid.buyerId);
+                  } catch (error) {
+                    console.error('Error fetching buyer:', error);
+                  }
+                  return { ...bid, buyer };
+                })
+              );
+              bids = bidsWithBuyers;
+            } catch (error) {
+              console.error('Error fetching bids:', error);
+            }
+
+            // Find auction this inventory is in
+            const joinAuctions = await auctionAPI.getAllAuctions();
+            const auction = joinAuctions.find(a => {
+              const now = new Date();
+              const start = new Date(a.startDate);
+              const end = new Date(a.endDate);
+              return now >= start && now <= end && a.status !== 'End Auction';
+            });
+
+            if (!auction || bids.length === 0) return null;
+
+            return {
+              inventory,
+              auction,
+              bids: bids.sort((a, b) => (b.currentBidPrice || 0) - (a.currentBidPrice || 0))
+            };
+          })
+        );
+
+        setMyAuctions(auctionsWithBids.filter(a => a !== null));
+      } catch (error) {
+        console.error('Error fetching ongoing auctions:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchOngoingAuctions();
+  }, [user]);
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading ongoing auctions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">Ongoing Auctions</h2>
+          <p className="text-gray-600 mt-1">View bidding history for your active auctions</p>
+        </div>
+        <div className="bg-blue-100 text-blue-800 px-4 py-2 rounded-full font-semibold">
+          {myAuctions.length} Active
+        </div>
+      </div>
+
+      {myAuctions.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No Ongoing Auctions</h3>
+          <p className="text-gray-600">You don't have any inventory in active auctions.</p>
+        </div>
+      ) : (
+        <div className="space-y-6">
+          {myAuctions.map((item, idx) => (
+            <div key={idx} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-blue-500 to-blue-600 p-6 text-white">
+                <h3 className="text-xl font-bold mb-2">{item.auction?.auctionName || 'Auction'}</h3>
+                <p className="text-blue-100">
+                  {item.inventory?.spiceName} • {item.inventory?.weight} kg • Grade {item.inventory?.grade}
+                </p>
+              </div>
+
+              {/* Bidding History */}
+              <div className="p-6">
+                <h4 className="font-bold text-gray-900 mb-4 flex items-center">
+                  <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Bidding History ({item.bids.length} bid{item.bids.length !== 1 ? 's' : ''})
+                </h4>
+
+                <div className="space-y-3">
+                  {item.bids.map((bid, bidIdx) => (
+                    <div key={bidIdx} className={`p-4 rounded-lg border ${bidIdx === 0 ? 'bg-green-50 border-green-300' : 'bg-gray-50 border-gray-200'}`}>
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="font-semibold text-gray-900">
+                            {bid.buyer?.fullName || bid.buyer?.name || 'Anonymous Buyer'}
+                          </p>
+                          <p className="text-sm text-gray-600">{bid.buyer?.emailAddress || bid.buyer?.email || 'No email'}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className={`text-2xl font-bold ${bidIdx === 0 ? 'text-green-600' : 'text-blue-600'}`}>
+                            ₹{(bid.currentBidPrice || 0).toLocaleString()}
+                          </p>
+                          <p className="text-xs text-gray-500">{formatDate(bid.createdAt)}</p>
+                        </div>
+                      </div>
+                      {bidIdx === 0 && (
+                        <div className="mt-2 text-sm text-green-700 font-medium flex items-center">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                          </svg>
+                          Current Highest Bid
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Farmer Completed Auctions Component
+const FarmerCompletedAuctions = ({ user }) => {
+  const [completedAuctions, setCompletedAuctions] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchCompletedAuctions = async () => {
+      try {
+        setLoading(true);
+        const farmerId = user?.id || user?._id;
+
+        // Get farmer's inventory
+        const inventoryResponse = await inventoryAPI.getInventoryByUser(farmerId);
+        const farmerInventory = inventoryResponse || [];
+
+        // Get all auctions
+        const allAuctions = await auctionAPI.getAllAuctions();
+
+        // Filter completed auctions
+        const completedWithWinners = await Promise.all(
+          farmerInventory.map(async (inventory) => {
+            const inventoryId = inventory._id || inventory.id;
+            
+            // Get all bids for this inventory
+            let bids = [];
+            let winner = null;
+            try {
+              const bidsResponse = await auctionAPI.getBidsByInventoryId(inventoryId);
+              bids = bidsResponse || [];
+              
+              if (bids.length > 0) {
+                // Find highest bid
+                const highestBidAmount = Math.max(...bids.map(b => b.currentBidPrice || 0));
+                const winningBid = bids.find(b => b.currentBidPrice === highestBidAmount);
+                
+                if (winningBid) {
+                  // Fetch winner details
+                  try {
+                    const buyerResponse = await authAPI.getAllBuyers();
+                    const allBuyers = buyerResponse.data?.buyers || buyerResponse.data || buyerResponse || [];
+                    winner = allBuyers.find(b => (b._id || b.id) === winningBid.buyerId);
+                    if (winner) {
+                      winner = { ...winner, bidAmount: winningBid.currentBidPrice };
+                    }
+                  } catch (error) {
+                    console.error('Error fetching winner:', error);
+                  }
+                }
+              }
+            } catch (error) {
+              console.error('Error fetching bids:', error);
+            }
+
+            // Find completed auction
+            const auction = allAuctions.find(a => {
+              if (a.status === 'End Auction') return true;
+              const now = new Date();
+              const end = new Date(a.endDate);
+              return now > end;
+            });
+
+            if (!auction) return null;
+
+            return {
+              inventory,
+              auction,
+              winner,
+              totalBids: bids.length
+            };
+          })
+        );
+
+        setCompletedAuctions(completedWithWinners.filter(a => a !== null));
+      } catch (error) {
+        console.error('Error fetching completed auctions:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchCompletedAuctions();
+  }, [user]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading completed auctions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">Completed Auctions</h2>
+          <p className="text-gray-600 mt-1">View winners of your completed auctions</p>
+        </div>
+        <div className="bg-gray-100 text-gray-800 px-4 py-2 rounded-full font-semibold">
+          {completedAuctions.length} Completed
+        </div>
+      </div>
+
+      {completedAuctions.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No Completed Auctions</h3>
+          <p className="text-gray-600">You don't have any completed auctions yet.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {completedAuctions.map((item, idx) => (
+            <div key={idx} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+              {/* Header */}
+              <div className="bg-gradient-to-r from-gray-500 to-gray-600 p-4 text-white">
+                <h3 className="text-lg font-bold">{item.auction?.auctionName || 'Auction'}</h3>
+                <p className="text-gray-200 text-sm">
+                  {item.inventory?.spiceName} • {item.inventory?.weight} kg • Grade {item.inventory?.grade}
+                </p>
+              </div>
+
+              {/* Winner Details */}
+              <div className="p-6">
+                {item.winner ? (
+                  <div className="space-y-4">
+                    <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg p-4 text-white">
+                      <p className="text-green-100 text-sm mb-1">🏆 Winner</p>
+                      <p className="text-xl font-bold">{item.winner.fullName || item.winner.name || 'Unknown Buyer'}</p>
+                      <p className="text-green-100 text-sm">{item.winner.emailAddress || item.winner.email}</p>
+                    </div>
+
+                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                      <p className="text-sm text-gray-600 mb-1">Winning Bid</p>
+                      <p className="text-3xl font-bold text-green-600">₹{(item.winner.bidAmount || 0).toLocaleString()}</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <p className="text-gray-500 mb-1">Total Bids</p>
+                        <p className="font-semibold text-gray-900">{item.totalBids}</p>
+                      </div>
+                      <div>
+                        <p className="text-gray-500 mb-1">Auction Ended</p>
+                        <p className="font-semibold text-gray-900 text-xs">
+                          {item.auction?.endDate ? new Date(item.auction.endDate).toLocaleDateString() : 'N/A'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center py-8">
+                    <p className="text-gray-500">No bids received</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Bank Details Modal Component
+const BankDetailsModal = ({ isOpen, onClose, user, onSuccess, existingData = null }) => {
+  const [formData, setFormData] = useState({
+    bankName: '',
+    accountHolderName: '',
+    accountNumber: '',
+    ifscCode: '',
+    upiId: ''
+  });
+  const [loading, setLoading] = useState(false);
+  const isEditMode = !!existingData;
+
+  // Update form when existingData changes
+  useEffect(() => {
+    if (existingData) {
+      setFormData({
+        bankName: existingData.bankName || '',
+        accountHolderName: existingData.accountHolderName || '',
+        accountNumber: existingData.accountNumber || '',
+        ifscCode: existingData.ifscCode || '',
+        upiId: existingData.upiId || ''
+      });
+    } else {
+      setFormData({
+        bankName: '',
+        accountHolderName: '',
+        accountNumber: '',
+        ifscCode: '',
+        upiId: ''
+      });
+    }
+  }, [existingData]);
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value
+    });
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!formData.bankName || !formData.accountHolderName || !formData.accountNumber || !formData.ifscCode) {
+      Swal.fire('Error', 'Please fill all required fields', 'error');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (isEditMode) {
+        // Update existing bank details
+        await authAPI.updateFarmerBankDetails(user.id, formData);
+        
+        Swal.fire({
+          icon: 'success',
+          title: 'Success!',
+          text: 'Bank details updated successfully',
+          confirmButtonColor: '#10b981'
+        });
+      } else {
+        // Add new bank details
+        const payload = {
+          farmerId: user.id,
+          ...formData
+        };
+        
+        await authAPI.addFarmerBankDetails(payload);
+        
+        Swal.fire({
+          icon: 'success',
+          title: 'Success!',
+          text: 'Bank details added successfully',
+          confirmButtonColor: '#10b981'
+        });
+      }
+
+      onSuccess();
+      onClose();
+    } catch (error) {
+      console.error('Error saving bank details:', error);
+      Swal.fire({
+        icon: 'error',
+        title: 'Error',
+        text: error.response?.data?.message || `Failed to ${isEditMode ? 'update' : 'add'} bank details`,
+        confirmButtonColor: '#ef4444'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        {/* Header */}
+        <div className="bg-gradient-to-r from-emerald-500 to-teal-600 p-6 rounded-t-xl">
+          <div className="flex items-center justify-between">
+            <h2 className="text-2xl font-bold text-white">
+              {isEditMode ? 'Edit Bank Details' : 'Add Bank Details'}
+            </h2>
+            <button
+              onClick={onClose}
+              className="text-white hover:bg-white/20 rounded-lg p-2 transition-colors"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Form */}
+        <form onSubmit={handleSubmit} className="p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Bank Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="bankName"
+              value={formData.bankName}
+              onChange={handleChange}
+              placeholder="e.g., State Bank of India"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Account Holder Name <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="accountHolderName"
+              value={formData.accountHolderName}
+              onChange={handleChange}
+              placeholder="As per bank account"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Account Number <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="accountNumber"
+              value={formData.accountNumber}
+              onChange={handleChange}
+              placeholder="Enter account number"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              IFSC Code <span className="text-red-500">*</span>
+            </label>
+            <input
+              type="text"
+              name="ifscCode"
+              value={formData.ifscCode}
+              onChange={handleChange}
+              placeholder="e.g., SBIN0001234"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent uppercase"
+              required
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              UPI ID <span className="text-gray-400">(Optional)</span>
+            </label>
+            <input
+              type="text"
+              name="upiId"
+              value={formData.upiId}
+              onChange={handleChange}
+              placeholder="e.g., john@paytm"
+              className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 focus:border-transparent"
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 font-medium transition-colors"
+              disabled={loading}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg hover:from-emerald-600 hover:to-teal-700 font-medium transition-all disabled:opacity-50"
+              disabled={loading}
+            >
+              {loading ? (isEditMode ? 'Updating...' : 'Adding...') : (isEditMode ? 'Update Details' : 'Add Bank Details')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+};
+
+// Farmer Bank Details Component
+const FarmerBankDetails = ({ user }) => {
+  const [bankDetails, setBankDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [showModal, setShowModal] = useState(false);
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+
+  useEffect(() => {
+    const fetchBankDetails = async () => {
+      try {
+        setLoading(true);
+        const response = await authAPI.getFarmerBankDetails(user.id);
+        if (response.success && response.data && response.data.bankDetails) {
+          setBankDetails(response.data.bankDetails);
+        }
+      } catch (error) {
+        if (error.response?.status !== 404) {
+          console.error('Error fetching bank details:', error);
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchBankDetails();
+  }, [user.id, refreshTrigger]);
+
+  const handleUpdateSuccess = () => {
+    setRefreshTrigger(prev => prev + 1);
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-500"></div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-6">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">Bank Details</h1>
+        {bankDetails && (
+          <button
+            onClick={() => setShowModal(true)}
+            className="px-6 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg hover:from-emerald-600 hover:to-teal-700 font-medium transition-all"
+          >
+            Update Details
+          </button>
+        )}
+      </div>
+
+      {!bankDetails ? (
+        <div className="bg-white rounded-xl shadow-lg p-8 text-center">
+          <div className="mb-4">
+            <svg className="w-16 h-16 mx-auto text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-semibold text-gray-800 mb-2">No Bank Details Found</h3>
+          <p className="text-gray-600 mb-6">Add your bank account details to receive payments from auctions</p>
+          <button
+            onClick={() => setShowModal(true)}
+            className="px-8 py-3 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-lg hover:from-emerald-600 hover:to-teal-700 font-medium transition-all"
+          >
+            Add Bank Details
+          </button>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="bg-gradient-to-r from-emerald-500 to-teal-600 p-6">
+            <div className="flex items-center text-white">
+              <svg className="w-8 h-8 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
+              </svg>
+              <h2 className="text-xl font-bold">Your Bank Account</h2>
+            </div>
+          </div>
+
+          <div className="p-6 space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">Bank Name</label>
+                <p className="text-lg font-semibold text-gray-800">{bankDetails.bankName}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">Account Holder Name</label>
+                <p className="text-lg font-semibold text-gray-800">{bankDetails.accountHolderName}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">Account Number</label>
+                <p className="text-lg font-semibold text-gray-800">{bankDetails.accountNumber}</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-500 mb-1">IFSC Code</label>
+                <p className="text-lg font-semibold text-gray-800">{bankDetails.ifscCode}</p>
+              </div>
+
+              {bankDetails.upiId && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-500 mb-1">UPI ID</label>
+                  <p className="text-lg font-semibold text-gray-800">{bankDetails.upiId}</p>
+                </div>
+              )}
+            </div>
+
+            <div className="mt-6 pt-6 border-t border-gray-200">
+              <div className="flex items-center text-emerald-600">
+                <svg className="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <span className="text-sm font-medium">Bank details verified and active</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <BankDetailsModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        user={user}
+        onSuccess={handleUpdateSuccess}
+        existingData={bankDetails}
+      />
+    </div>
+  );
+};
+
+// Farmer Payments Component
+const FarmerPayments = ({ user }) => {
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchPayments = async () => {
+      try {
+        setLoading(true);
+        const farmerId = user?.id || user?._id;
+        const paymentsData = await auctionAPI.getPaymentsByFarmerId(farmerId);
+        
+        // Fetch additional details for each payment
+        const paymentsWithDetails = await Promise.all(
+          (paymentsData || []).map(async (payment) => {
+            let buyer = null;
+            let auction = null;
+            let inventory = null;
+
+            // Fetch buyer details
+            try {
+              const buyerResponse = await authAPI.getBuyerById(payment.buyerId);
+              if (buyerResponse?.data?.buyer) {
+                buyer = buyerResponse.data.buyer;
+              }
+            } catch (error) {
+              console.error('Error fetching buyer:', error);
+            }
+
+            // Fetch auction details
+            try {
+              const allAuctions = await auctionAPI.getAllAuctions();
+              auction = allAuctions.find(a => (a._id || a.id) === payment.auctionId);
+            } catch (error) {
+              console.error('Error fetching auction:', error);
+            }
+
+            // Fetch inventory details
+            try {
+              inventory = await inventoryAPI.getInventoryItem(payment.inventoryId);
+            } catch (error) {
+              console.error('Error fetching inventory:', error);
+            }
+
+            return {
+              ...payment,
+              buyer,
+              auction,
+              inventory
+            };
+          })
+        );
+
+        setPayments(paymentsWithDetails);
+      } catch (error) {
+        console.error('Error fetching payments:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchPayments();
+  }, [user]);
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading payments...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">Payments Received</h2>
+          <p className="text-gray-600 mt-1">View all payments received from buyers</p>
+        </div>
+        <div className="bg-emerald-100 text-emerald-800 px-4 py-2 rounded-full font-semibold">
+          Total: {payments.length} Payment{payments.length !== 1 ? 's' : ''}
+        </div>
+      </div>
+
+      {/* No Payments State */}
+      {payments.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+          <div className="w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-10 h-10 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">No Payments Yet</h3>
+          <p className="text-gray-600">You haven't received any payments yet.</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 gap-6">
+          {payments.map((payment, index) => (
+            <div key={payment._id || index} className="bg-white rounded-xl shadow-lg border-2 border-emerald-200 overflow-hidden hover:shadow-xl transition-shadow">
+              {/* Payment Badge */}
+              <div className="bg-gradient-to-r from-emerald-500 to-green-600 px-6 py-3 flex items-center justify-between">
+                <div className="flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-white font-bold text-sm">✓ PAYMENT RECEIVED</span>
+                </div>
+                <span className="text-white text-sm opacity-90">{formatDate(payment.createdAt || payment.paymentDate)}</span>
+              </div>
+
+              {/* Payment Details */}
+              <div className="p-6">
+                {/* Amount */}
+                <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg p-4 mb-4 border border-emerald-200">
+                  <p className="text-emerald-700 text-sm mb-1 font-medium">Amount Received</p>
+                  <p className="text-3xl font-bold text-emerald-600">₹{(payment.amount || 0).toLocaleString()}</p>
+                </div>
+
+                {/* Details Grid */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  {/* Buyer Info */}
+                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                    <p className="text-xs text-blue-600 mb-2 font-semibold">BUYER DETAILS</p>
+                    <p className="font-bold text-gray-900">{payment.buyer?.fullName || 'Unknown Buyer'}</p>
+                    <p className="text-sm text-gray-600">{payment.buyer?.contactNumber || 'No contact'}</p>
+                  </div>
+
+                  {/* Auction Info */}
+                  <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                    <p className="text-xs text-purple-600 mb-2 font-semibold">AUCTION DETAILS</p>
+                    <p className="font-bold text-gray-900">{payment.auction?.auctionName || payment.auction?.auctionTitle || 'N/A'}</p>
+                    <p className="text-sm text-gray-600">Status: {payment.auction?.status || 'Completed'}</p>
+                  </div>
+                </div>
+
+                {/* Inventory Info */}
+                <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
+                  <p className="text-xs text-amber-700 mb-2 font-semibold">PRODUCT DETAILS</p>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <p className="font-bold text-gray-900">{payment.inventory?.spiceName || 'N/A'}</p>
+                      <p className="text-sm text-gray-600">Grade: {payment.inventory?.grade || 'N/A'}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-2xl font-bold text-amber-700">{payment.inventory?.weight || 0} kg</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment ID */}
+                {payment.paymentId && (
+                  <div className="mt-4 pt-4 border-t border-gray-200">
+                    <p className="text-xs text-gray-500">Payment ID</p>
+                    <p className="text-sm font-mono text-gray-700">{payment.paymentId}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

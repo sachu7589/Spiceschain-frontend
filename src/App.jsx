@@ -9,6 +9,7 @@ import BuyerRegisterGoogle from './pages/register/BuyerRegisterGoogle'
 import DashboardRouter from './components/DashboardRouter'
 import FarmerVerification from './pages/farmer/FarmerVerification'
 import AadhaarVerificationResults from './pages/farmer/AadhaarVerificationResults'
+import BuyerVerification from './pages/buyer/BuyerVerification'
 import ProtectedRoute from './components/ProtectedRoute'
 import AuthRedirect from './components/AuthRedirect'
 
@@ -56,6 +57,11 @@ function App() {
           <Route path="/farmer/verification/results" element={
             <ProtectedRoute>
               <AadhaarVerificationResults />
+            </ProtectedRoute>
+          } />
+          <Route path="/buyer/verification" element={
+            <ProtectedRoute>
+              <BuyerVerification />
             </ProtectedRoute>
           } />
         </Routes>

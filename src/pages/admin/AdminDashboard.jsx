@@ -68,6 +68,8 @@ const AdminDashboard = () => {
         return <AuctionResults />;
       case 'auction-history':
         return <AuctionHistory />;
+      case 'payments':
+        return <PaymentManagementView />;
       default:
         return <AdminDashboardOverview user={user} />;
     }
@@ -79,6 +81,7 @@ const AdminDashboard = () => {
     { id: 'buyers', label: 'Manage Buyers', icon: 'building' },
     { id: 'inventory', label: 'Inventory Oversight', icon: 'inventory' },
     { id: 'auction-management', label: 'Auction Management', icon: 'gavel' },
+    { id: 'payments', label: 'Payment Management', icon: 'payment' },
   ];
 
   const getIcon = (iconName) => {
@@ -1804,21 +1807,27 @@ const AuctionManagement = ({ onMenuClick, showToast }) => {
       // Fetch participants for this auction
       const joinData = await auctionAPI.getJoinAuctionsByAuctionId(auctionId);
       
-      // Fetch all farmers once (same way as ManageFarmers component)
+      // Fetch all farmers and buyers once
       let allFarmersData = [];
+      let allBuyersData = [];
       try {
-        const response = await authAPI.getAllFarmers();
-        allFarmersData = response.data.farmers || [];
+        const farmersResponse = await authAPI.getAllFarmers();
+        allFarmersData = farmersResponse.data.farmers || [];
         console.log('Fetched farmers:', allFarmersData);
+        
+        const buyersResponse = await authAPI.getAllBuyers();
+        allBuyersData = buyersResponse.data?.buyers || buyersResponse.data || buyersResponse || [];
       } catch (error) {
-        console.error('Error fetching all farmers:', error);
+        console.error('Error fetching farmers/buyers:', error);
       }
       
-      // Fetch inventory and farmer details for each participant
+      // Fetch inventory, farmer details, and bids for each participant
       const participantsWithInventory = await Promise.all(
         joinData.map(async (join) => {
           let inventoryItem = null;
           let farmer = null;
+          let bids = [];
+          let winner = null;
           
           // Fetch inventory item
           try {
@@ -1835,11 +1844,39 @@ const AuctionManagement = ({ onMenuClick, showToast }) => {
           if (!farmer) {
             console.log('Farmer not found for ID:', join.farmerId);
           }
+
+          // Fetch bids for this inventory
+          try {
+            const bidsResponse = await auctionAPI.getBidsByInventoryId(join.inventoryId);
+            bids = bidsResponse || [];
+            
+            // Fetch buyer details for each bid
+            const bidsWithBuyers = await Promise.all(
+              bids.map(async (bid) => {
+                const buyer = allBuyersData.find(b => (b._id || b.id) === bid.buyerId);
+                return { ...bid, buyer };
+              })
+            );
+            bids = bidsWithBuyers.sort((a, b) => (b.currentBidPrice || 0) - (a.currentBidPrice || 0));
+
+            // Find winner (highest bid)
+            if (bids.length > 0) {
+              winner = bids[0].buyer;
+              if (winner) {
+                winner = { ...winner, bidAmount: bids[0].currentBidPrice };
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching bids for inventory:', error);
+          }
           
           return {
             ...join,
             inventoryItem,
-            farmer
+            farmer,
+            bids,
+            winner,
+            totalBids: bids.length
           };
         })
       );
@@ -2697,6 +2734,66 @@ const AuctionParticipantsView = ({ auction, participants, onBack }) => {
                     </div>
                   </div>
                 </div>
+
+                {/* Winner & Bidding History Section */}
+                {participant.totalBids > 0 && (
+                  <div className="mt-6 pt-6 border-t border-gray-300">
+                    {/* Winner Info */}
+                    {participant.winner && (
+                      <div className="mb-4 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg p-4 text-white">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-green-100 text-sm mb-1">🏆 Winner</p>
+                            <p className="text-xl font-bold">{participant.winner.fullName || participant.winner.name || 'Unknown Buyer'}</p>
+                            <p className="text-green-100 text-sm">{participant.winner.emailAddress || participant.winner.email}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-green-100 text-sm mb-1">Winning Bid</p>
+                            <p className="text-2xl font-bold">₹{(participant.winner.bidAmount || 0).toLocaleString()}</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Bidding History */}
+                    <div>
+                      <h4 className="font-bold text-gray-900 mb-3 flex items-center">
+                        <svg className="w-5 h-5 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Bidding History ({participant.totalBids} bid{participant.totalBids !== 1 ? 's' : ''})
+                      </h4>
+                      <div className="space-y-2 max-h-64 overflow-y-auto">
+                        {participant.bids.map((bid, bidIdx) => (
+                          <div key={bidIdx} className={`p-3 rounded-lg border ${bidIdx === 0 ? 'bg-green-50 border-green-300' : 'bg-white border-gray-200'}`}>
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <p className="font-semibold text-gray-900 text-sm">
+                                  {bid.buyer?.fullName || bid.buyer?.name || 'Anonymous Buyer'}
+                                </p>
+                                <p className="text-xs text-gray-600">{bid.buyer?.emailAddress || bid.buyer?.email}</p>
+                              </div>
+                              <div className="text-right">
+                                <p className={`text-lg font-bold ${bidIdx === 0 ? 'text-green-600' : 'text-blue-600'}`}>
+                                  ₹{(bid.currentBidPrice || 0).toLocaleString()}
+                                </p>
+                                <p className="text-xs text-gray-500">{bid.createdAt ? new Date(bid.createdAt).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}</p>
+                              </div>
+                            </div>
+                            {bidIdx === 0 && (
+                              <div className="mt-2 text-xs text-green-700 font-medium flex items-center">
+                                <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                                </svg>
+                                Winning Bid
+                              </div>
+                            )}
+              </div>
+            ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -3208,20 +3305,26 @@ const OngoingAuctions = () => {
       // Fetch participants for this auction
       const joinData = await auctionAPI.getJoinAuctionsByAuctionId(auctionId);
       
-      // Fetch all farmers once
+      // Fetch all farmers and buyers once
       let allFarmersData = [];
+      let allBuyersData = [];
       try {
-        const response = await authAPI.getAllFarmers();
-        allFarmersData = response.data.farmers || [];
+        const farmersResponse = await authAPI.getAllFarmers();
+        allFarmersData = farmersResponse.data.farmers || [];
+        
+        const buyersResponse = await authAPI.getAllBuyers();
+        allBuyersData = buyersResponse.data?.buyers || buyersResponse.data || buyersResponse || [];
       } catch (error) {
-        console.error('Error fetching all farmers:', error);
+        console.error('Error fetching farmers/buyers:', error);
       }
       
-      // Fetch inventory and farmer details for each participant
+      // Fetch inventory, farmer details, and bids for each participant
       const participantsWithInventory = await Promise.all(
         joinData.map(async (join) => {
           let inventoryItem = null;
           let farmer = null;
+          let bids = [];
+          let winner = null;
           
           // Fetch inventory item
           try {
@@ -3234,11 +3337,39 @@ const OngoingAuctions = () => {
           if (Array.isArray(allFarmersData) && allFarmersData.length > 0) {
             farmer = allFarmersData.find(f => f._id === join.farmerId || f.id === join.farmerId);
           }
+
+          // Fetch bids for this inventory
+          try {
+            const bidsResponse = await auctionAPI.getBidsByInventoryId(join.inventoryId);
+            bids = bidsResponse || [];
+            
+            // Fetch buyer details for each bid
+            const bidsWithBuyers = await Promise.all(
+              bids.map(async (bid) => {
+                const buyer = allBuyersData.find(b => (b._id || b.id) === bid.buyerId);
+                return { ...bid, buyer };
+              })
+            );
+            bids = bidsWithBuyers.sort((a, b) => (b.currentBidPrice || 0) - (a.currentBidPrice || 0));
+
+            // Find winner (highest bid)
+            if (bids.length > 0) {
+              winner = bids[0].buyer;
+              if (winner) {
+                winner = { ...winner, bidAmount: bids[0].currentBidPrice };
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching bids for inventory:', error);
+          }
           
           return {
             ...join,
             inventoryItem,
-            farmer
+            farmer,
+            bids,
+            winner,
+            totalBids: bids.length
           };
         })
       );
@@ -3644,20 +3775,26 @@ const AuctionResults = () => {
       // Fetch participants for this auction
       const joinData = await auctionAPI.getJoinAuctionsByAuctionId(auctionId);
       
-      // Fetch all farmers once
+      // Fetch all farmers and buyers once
       let allFarmersData = [];
+      let allBuyersData = [];
       try {
-        const response = await authAPI.getAllFarmers();
-        allFarmersData = response.data.farmers || [];
+        const farmersResponse = await authAPI.getAllFarmers();
+        allFarmersData = farmersResponse.data.farmers || [];
+        
+        const buyersResponse = await authAPI.getAllBuyers();
+        allBuyersData = buyersResponse.data?.buyers || buyersResponse.data || buyersResponse || [];
       } catch (error) {
-        console.error('Error fetching all farmers:', error);
+        console.error('Error fetching farmers/buyers:', error);
       }
       
-      // Fetch inventory and farmer details for each participant
+      // Fetch inventory, farmer details, and bids for each participant
       const participantsWithInventory = await Promise.all(
         joinData.map(async (join) => {
           let inventoryItem = null;
           let farmer = null;
+          let bids = [];
+          let winner = null;
           
           // Fetch inventory item
           try {
@@ -3670,11 +3807,39 @@ const AuctionResults = () => {
           if (Array.isArray(allFarmersData) && allFarmersData.length > 0) {
             farmer = allFarmersData.find(f => f._id === join.farmerId || f.id === join.farmerId);
           }
+
+          // Fetch bids for this inventory
+          try {
+            const bidsResponse = await auctionAPI.getBidsByInventoryId(join.inventoryId);
+            bids = bidsResponse || [];
+            
+            // Fetch buyer details for each bid
+            const bidsWithBuyers = await Promise.all(
+              bids.map(async (bid) => {
+                const buyer = allBuyersData.find(b => (b._id || b.id) === bid.buyerId);
+                return { ...bid, buyer };
+              })
+            );
+            bids = bidsWithBuyers.sort((a, b) => (b.currentBidPrice || 0) - (a.currentBidPrice || 0));
+
+            // Find winner (highest bid)
+            if (bids.length > 0) {
+              winner = bids[0].buyer;
+              if (winner) {
+                winner = { ...winner, bidAmount: bids[0].currentBidPrice };
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching bids for inventory:', error);
+          }
           
           return {
             ...join,
             inventoryItem,
-            farmer
+            farmer,
+            bids,
+            winner,
+            totalBids: bids.length
           };
         })
       );
@@ -3749,7 +3914,7 @@ const AuctionResults = () => {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
           <div className="flex items-center justify-between">
             <div>
@@ -3770,17 +3935,6 @@ const AuctionResults = () => {
           </div>
         </div>
 
-        <div className="bg-gradient-to-r from-purple-500 to-purple-600 text-white p-6 rounded-xl shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-purple-100 text-sm font-medium">Avg Final Bid</p>
-              <p className="text-3xl font-bold">
-                ₹{results.length > 0 ? Math.round(results.reduce((sum, r) => sum + (r.currentBid || 0), 0) / results.length).toLocaleString() : '0'}
-              </p>
-            </div>
-            <FaRupeeSign className="w-8 h-8 text-purple-200" />
-          </div>
-        </div>
 
         <div className="bg-gradient-to-r from-emerald-500 to-emerald-600 text-white p-6 rounded-xl shadow-lg">
           <div className="flex items-center justify-between">
@@ -3801,7 +3955,6 @@ const AuctionResults = () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Auction</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Spice Type</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Final Bid</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Increment</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
@@ -3821,9 +3974,6 @@ const AuctionResults = () => {
                     <span className="px-2 py-1 bg-purple-100 text-purple-800 text-xs font-medium rounded-full">
                       {auction.spiceType}
                     </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-blue-600">₹{(auction.currentBid || 0).toLocaleString()}</div>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     ₹{auction.incrementValue}
@@ -4029,20 +4179,26 @@ const AuctionHistory = () => {
       // Fetch participants for this auction
       const joinData = await auctionAPI.getJoinAuctionsByAuctionId(auctionId);
       
-      // Fetch all farmers once
+      // Fetch all farmers and buyers once
       let allFarmersData = [];
+      let allBuyersData = [];
       try {
-        const response = await authAPI.getAllFarmers();
-        allFarmersData = response.data.farmers || [];
+        const farmersResponse = await authAPI.getAllFarmers();
+        allFarmersData = farmersResponse.data.farmers || [];
+        
+        const buyersResponse = await authAPI.getAllBuyers();
+        allBuyersData = buyersResponse.data?.buyers || buyersResponse.data || buyersResponse || [];
       } catch (error) {
-        console.error('Error fetching all farmers:', error);
+        console.error('Error fetching farmers/buyers:', error);
       }
       
-      // Fetch inventory and farmer details for each participant
+      // Fetch inventory, farmer details, and bids for each participant
       const participantsWithInventory = await Promise.all(
         joinData.map(async (join) => {
           let inventoryItem = null;
           let farmer = null;
+          let bids = [];
+          let winner = null;
           
           // Fetch inventory item
           try {
@@ -4055,11 +4211,39 @@ const AuctionHistory = () => {
           if (Array.isArray(allFarmersData) && allFarmersData.length > 0) {
             farmer = allFarmersData.find(f => f._id === join.farmerId || f.id === join.farmerId);
           }
+
+          // Fetch bids for this inventory
+          try {
+            const bidsResponse = await auctionAPI.getBidsByInventoryId(join.inventoryId);
+            bids = bidsResponse || [];
+            
+            // Fetch buyer details for each bid
+            const bidsWithBuyers = await Promise.all(
+              bids.map(async (bid) => {
+                const buyer = allBuyersData.find(b => (b._id || b.id) === bid.buyerId);
+                return { ...bid, buyer };
+              })
+            );
+            bids = bidsWithBuyers.sort((a, b) => (b.currentBidPrice || 0) - (a.currentBidPrice || 0));
+
+            // Find winner (highest bid)
+            if (bids.length > 0) {
+              winner = bids[0].buyer;
+              if (winner) {
+                winner = { ...winner, bidAmount: bids[0].currentBidPrice };
+              }
+            }
+          } catch (error) {
+            console.error('Error fetching bids for inventory:', error);
+          }
           
           return {
             ...join,
             inventoryItem,
-            farmer
+            farmer,
+            bids,
+            winner,
+            totalBids: bids.length
           };
         })
       );
@@ -4129,7 +4313,7 @@ const AuctionHistory = () => {
       </div>
 
       {/* Analytics Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="bg-gradient-to-r from-blue-500 to-blue-600 text-white p-6 rounded-xl shadow-lg">
           <div className="flex items-center justify-between">
             <div>
@@ -4160,15 +4344,6 @@ const AuctionHistory = () => {
           </div>
         </div>
 
-        <div className="bg-gradient-to-r from-orange-500 to-orange-600 text-white p-6 rounded-xl shadow-lg">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-orange-100 text-sm font-medium">Avg Final Bid</p>
-              <p className="text-3xl font-bold">₹{history.length > 0 ? Math.round(totalRevenue / history.length).toLocaleString() : '0'}</p>
-            </div>
-            <FaChartBar className="w-8 h-8 text-orange-200" />
-          </div>
-        </div>
       </div>
 
       {/* Filters */}
@@ -4215,11 +4390,8 @@ const AuctionHistory = () => {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Auction</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Final Bid</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Increment</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Start Date</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Bidders</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total Value</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">End Date</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
               </tr>
@@ -4240,20 +4412,11 @@ const AuctionHistory = () => {
                       {auction.status === 'End Auction' ? 'Ended Early' : 'Completed'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-blue-600">
-                    ₹{(auction.currentBid || 0).toLocaleString()}
-                  </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                     ₹{auction.incrementValue}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatDate(auction.startDate)}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {auction.bidders || 0}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600">
-                    ₹{(auction.currentBid || 0).toLocaleString()}
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                     {formatDate(auction.endDate)}
@@ -4375,6 +4538,221 @@ const AuctionHistory = () => {
                 )}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+// Payment Management View Component
+const PaymentManagementView = () => {
+  const [payments, setPayments] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  useEffect(() => {
+    const fetchAllPayments = async () => {
+      try {
+        setLoading(true);
+        // Fetch all payments using the dedicated endpoint
+        const response = await auctionAPI.getAllPayments();
+        const allPayments = response.data || response || [];
+
+        // Fetch additional details for each payment
+        const paymentsWithDetails = await Promise.all(
+          allPayments.map(async (payment) => {
+            let farmer = null;
+            let buyer = null;
+            let auction = null;
+            let inventory = null;
+
+            // Fetch farmer details
+            try {
+              const farmerResponse = await authAPI.getFarmerById(payment.farmerId);
+              if (farmerResponse?.data?.farmer) {
+                farmer = farmerResponse.data.farmer;
+              }
+            } catch (error) {
+              console.error('Error fetching farmer:', error);
+            }
+
+            // Fetch buyer details
+            try {
+              const buyerResponse = await authAPI.getBuyerById(payment.buyerId);
+              if (buyerResponse?.data?.buyer) {
+                buyer = buyerResponse.data.buyer;
+              }
+            } catch (error) {
+              console.error('Error fetching buyer:', error);
+            }
+
+            // Fetch auction details
+            try {
+              const allAuctions = await auctionAPI.getAllAuctions();
+              auction = allAuctions.find(a => (a._id || a.id) === payment.auctionId);
+            } catch (error) {
+              console.error('Error fetching auction:', error);
+            }
+
+            // Fetch inventory details
+            try {
+              inventory = await inventoryAPI.getInventoryItem(payment.inventoryId);
+            } catch (error) {
+              console.error('Error fetching inventory:', error);
+            }
+
+            return {
+              ...payment,
+              farmer,
+              buyer,
+              auction,
+              inventory
+            };
+          })
+        );
+
+        setPayments(paymentsWithDetails);
+      } catch (error) {
+        console.error('Error fetching payments:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchAllPayments();
+  }, []);
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    });
+  };
+
+  const filteredPayments = payments.filter(payment => {
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      payment.farmer?.fullName?.toLowerCase().includes(searchLower) ||
+      payment.buyer?.fullName?.toLowerCase().includes(searchLower) ||
+      payment.buyer?.name?.toLowerCase().includes(searchLower) ||
+      payment.auction?.auctionName?.toLowerCase().includes(searchLower) ||
+      payment.inventory?.spiceName?.toLowerCase().includes(searchLower) ||
+      payment.amount?.toString().includes(searchLower)
+    );
+  });
+
+  const totalAmount = payments.reduce((sum, payment) => sum + (payment.amount || 0), 0);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading payments...</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h2 className="text-3xl font-bold text-gray-900">Payment Management</h2>
+          <p className="text-gray-600 mt-1">Monitor all platform payments</p>
+        </div>
+        <div className="flex gap-3">
+          <div className="bg-indigo-100 text-indigo-800 px-4 py-2 rounded-full font-semibold">
+            {payments.length} Payment{payments.length !== 1 ? 's' : ''}
+          </div>
+          <div className="bg-green-100 text-green-800 px-4 py-2 rounded-full font-semibold">
+            ₹{totalAmount.toLocaleString()} Total
+          </div>
+        </div>
+      </div>
+
+      {/* Search */}
+      <div className="bg-white rounded-xl shadow-lg p-4">
+        <input
+          type="text"
+          placeholder="Search by farmer, buyer, auction, spice, or amount..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
+        />
+      </div>
+
+      {/* No Payments State */}
+      {filteredPayments.length === 0 ? (
+        <div className="bg-white rounded-xl shadow-lg p-12 text-center">
+          <div className="w-20 h-20 bg-indigo-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <svg className="w-10 h-10 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+            </svg>
+          </div>
+          <h3 className="text-xl font-semibold text-gray-900 mb-2">
+            {searchTerm ? 'No Matching Payments' : 'No Payments Yet'}
+          </h3>
+          <p className="text-gray-600">
+            {searchTerm ? 'Try a different search term' : 'No payments have been recorded yet.'}
+          </p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-xl shadow-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gradient-to-r from-indigo-500 to-purple-600 text-white">
+                <tr>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase">Date</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase">Farmer</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase">Buyer</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase">Auction</th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase">Product</th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase">Amount</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {filteredPayments.map((payment, index) => (
+                  <tr key={payment._id || index} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-600">
+                      {formatDate(payment.createdAt || payment.paymentDate)}
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-semibold text-gray-900">{payment.farmer?.fullName || 'N/A'}</div>
+                      <div className="text-xs text-gray-500">{payment.farmer?.contactNumber || '-'}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-semibold text-gray-900">{payment.buyer?.fullName || 'N/A'}</div>
+                      <div className="text-xs text-gray-500">{payment.buyer?.contactNumber || '-'}</div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-semibold text-gray-900">{payment.auction?.auctionName || payment.auction?.auctionTitle || 'N/A'}</div>
+                      <div className="text-xs text-gray-500">
+                        Status: {payment.auction?.status || 'Completed'}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-semibold text-gray-900">{payment.inventory?.spiceName || 'N/A'}</div>
+                      <div className="text-xs text-gray-500">
+                        Grade: {payment.inventory?.grade || 'N/A'} • {payment.inventory?.weight || 0} kg
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right whitespace-nowrap">
+                      <div className="text-lg font-bold text-green-600">₹{(payment.amount || 0).toLocaleString()}</div>
+                      {payment.paymentId && (
+                        <div className="text-xs text-gray-400 font-mono">{payment.paymentId.substring(0, 10)}...</div>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
         </div>
       )}

@@ -71,11 +71,42 @@ export const authAPI = {
     return response.data;
   },
 
+  // Get farmer by ID
+  getFarmerById: async (farmerId) => {
+    const response = await api.get(`/api/auth/farmer/${farmerId}`);
+    return response.data;
+  },
+
   // Get all buyers
   getAllBuyers: async () => {
     const response = await api.get('/api/auth/buyer');
     return response.data;
   },
+
+  // Get buyer by ID
+  getBuyerById: async (buyerId) => {
+    const response = await api.get(`/api/auth/buyer/${buyerId}`);
+    return response.data;
+  },
+
+  // Get farmer bank details
+  getFarmerBankDetails: async (farmerId) => {
+    const response = await api.get(`/api/auth/farmer/bank-details/${farmerId}`);
+    return response.data;
+  },
+
+  // Add farmer bank details
+  addFarmerBankDetails: async (bankData) => {
+    const response = await api.post('/api/auth/farmer/bank-details', bankData);
+    return response.data;
+  },
+
+  // Update farmer bank details
+  updateFarmerBankDetails: async (farmerId, bankData) => {
+    const response = await api.put(`/api/auth/farmer/bank-details/${farmerId}`, bankData);
+    return response.data;
+  },
+
 
   // Get Aadhaar verification details
   getAadhaarVerification: async (userId) => {
@@ -738,6 +769,95 @@ export const auctionAPI = {
   getJoinAuctionsByAuctionId: async (auctionId) => {
     const response = await auctionApi.get(`/api/join-auctions/auction/${auctionId}`);
     return response.data;
+  },
+
+  // Get bids for a specific inventory
+  getBidsByInventoryId: async (inventoryId) => {
+    const response = await auctionApi.get(`/api/bids/inventory/${inventoryId}`);
+    return response.data;
+  },
+
+  // Place a new bid
+  createBid: async (bidData) => {
+    const response = await auctionApi.post('/api/bids/create', bidData);
+    return response.data;
+  },
+
+  // Get bids by buyer ID
+  getBidsByBuyerId: async (buyerId) => {
+    const response = await auctionApi.get(`/api/bids/buyer/${buyerId}`);
+    return response.data;
+  },
+
+  // Create payment
+  createPayment: async (paymentData) => {
+    const response = await auctionApi.post('/api/payments/create', paymentData);
+    return response.data;
+  },
+
+  // Get all payments
+  getAllPayments: async () => {
+    const response = await auctionApi.get('/api/payments/');
+    return response.data;
+  },
+
+  // Get payments by farmer ID
+  getPaymentsByFarmerId: async (farmerId) => {
+    const response = await auctionApi.get(`/api/payments/farmer/${farmerId}`);
+    return response.data;
+  },
+
+  // Get payments by auction ID
+  getPaymentsByAuctionId: async (auctionId) => {
+    const response = await auctionApi.get(`/api/payments/auction/${auctionId}`);
+    return response.data;
+  },
+
+  // Get payments by inventory ID
+  getPaymentsByInventoryId: async (inventoryId) => {
+    const response = await auctionApi.get(`/api/payments/inventory/${inventoryId}`);
+    return response.data;
+  },
+
+  // Get payments by buyer ID
+  getPaymentsByBuyerId: async (buyerId) => {
+    const response = await auctionApi.get(`/api/payments/buyer/${buyerId}`);
+    return response.data;
+  },
+};
+
+// PAN Verification API functions (using main API on port 3000)
+export const panAPI = {
+  // Send OTP for PAN verification
+  sendOTP: async (panData) => {
+    console.log('PAN API Send OTP:', api.defaults.baseURL + '/api/verification/pan/send-otp');
+    console.log('Send OTP payload:', panData);
+    try {
+      const response = await api.post('/api/verification/pan/send-otp', panData);
+      console.log('Send OTP response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Send OTP API error:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      throw error;
+    }
+  },
+
+  // Verify OTP for PAN
+  verifyOTP: async (otpData) => {
+    console.log('PAN API Verify OTP:', api.defaults.baseURL + '/api/verification/pan/verify-otp');
+    console.log('Verify OTP payload:', otpData);
+    try {
+      const response = await api.post('/api/verification/pan/verify-otp', otpData);
+      console.log('Verify OTP response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Verify OTP API error:', error);
+      console.error('Error response:', error.response?.data);
+      console.error('Error status:', error.response?.status);
+      throw error;
+    }
   },
 };
 
