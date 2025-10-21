@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { authAPI } from '../services/api';
+import { authAPI, statsAPI } from '../services/api';
 import { useAuth } from '../context/AuthContext';
 import Swal from 'sweetalert2';
 import GoogleAuthLogin from '../components/GoogleAuthLogin';
@@ -9,12 +9,29 @@ const Login = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
+  const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
   const [formData, setFormData] = useState({
     emailOrPhone: '',
     password: ''
   });
 
   const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const data = await statsAPI.getPlatformStats();
+        setStats(data);
+      } catch (error) {
+        console.error('Error loading platform stats:', error);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+    
+    fetchStats();
+  }, []);
 
   // Validation functions
   const validateEmailOrPhone = (value) => {
@@ -362,15 +379,21 @@ const Login = () => {
             {/* Stats */}
             <div className="grid grid-cols-3 gap-6 mt-12">
               <div className="text-center">
-                <div className="text-2xl font-bold">10K+</div>
+                <div className="text-2xl font-bold">
+                  {statsLoading ? '...' : stats?.activeUsers > 1000 ? `${Math.floor(stats.activeUsers / 1000)}K+` : `${stats?.activeUsers || 0}+`}
+                </div>
                 <div className="text-sm opacity-80">Active Users</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">₹50M+</div>
+                <div className="text-2xl font-bold">
+                  {statsLoading ? '...' : stats?.tradingVolume > 1000000 ? `₹${Math.floor(stats.tradingVolume / 1000000)}M+` : stats?.tradingVolume > 1000 ? `₹${Math.floor(stats.tradingVolume / 1000)}K+` : `₹${stats?.tradingVolume || 0}+`}
+                </div>
                 <div className="text-sm opacity-80">Trading Volume</div>
               </div>
               <div className="text-center">
-                <div className="text-2xl font-bold">95%</div>
+                <div className="text-2xl font-bold">
+                  {statsLoading ? '...' : `${Math.floor(stats?.successRate || 0)}%`}
+                </div>
                 <div className="text-sm opacity-80">Success Rate</div>
               </div>
             </div>

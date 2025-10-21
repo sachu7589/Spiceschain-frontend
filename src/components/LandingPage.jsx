@@ -1,17 +1,35 @@
 import { Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { statsAPI } from '../services/api';
 
 function LandingPage() {
   const { isAuthenticated, loading } = useAuth();
   const navigate = useNavigate();
+  const [stats, setStats] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   useEffect(() => {
     if (!loading && isAuthenticated) {
       navigate('/dashboard');
     }
   }, [isAuthenticated, loading, navigate]);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const data = await statsAPI.getPlatformStats();
+        setStats(data);
+      } catch (error) {
+        console.error('Error loading platform stats:', error);
+      } finally {
+        setStatsLoading(false);
+      }
+    };
+    
+    fetchStats();
+  }, []);
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       {/* Header */}
@@ -62,7 +80,7 @@ function LandingPage() {
             </div>
             <div className="flex items-center space-x-6">
               <span>Last Updated: 2 min ago</span>
-              <span>1,247 Active Users</span>
+              <span>{statsLoading ? 'Loading...' : `${stats?.activeUsers?.toLocaleString() || '0'} Active Users`}</span>
             </div>
           </div>
         </div>
@@ -78,13 +96,35 @@ function LandingPage() {
             <p className="text-xl text-gray-600 mb-8 max-w-3xl mx-auto">
               Connect directly with farmers, get real-time pricing, and trade spices with transparency and efficiency. Join thousands of traders already benefiting from our platform.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
+            <div className="flex flex-col sm:flex-row gap-4 justify-center mb-12">
               <button className="bg-gradient-to-r from-emerald-600 to-teal-700 text-white px-8 py-4 rounded-xl font-semibold hover:from-emerald-700 hover:to-teal-800 transition-all duration-300 shadow-lg hover:shadow-xl transform hover:-translate-y-1">
                 Start Trading Now
               </button>
               <button className="border-2 border-emerald-600 text-emerald-600 bg-transparent px-8 py-4 rounded-xl font-semibold hover:bg-emerald-600 hover:text-white transition-all duration-300">
                 Watch Demo
               </button>
+            </div>
+            
+            {/* Platform Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-4xl mx-auto">
+              <div className="text-center p-6 bg-white/50 backdrop-blur-sm rounded-2xl border border-emerald-100">
+                <div className="text-4xl font-bold bg-gradient-to-r from-emerald-600 to-teal-600 bg-clip-text text-transparent mb-2">
+                  {statsLoading ? '...' : stats?.activeUsers > 1000 ? `${Math.floor(stats.activeUsers / 1000)}K+` : `${stats?.activeUsers || 0}+`}
+                </div>
+                <div className="text-gray-600 font-medium">Active Users</div>
+              </div>
+              <div className="text-center p-6 bg-white/50 backdrop-blur-sm rounded-2xl border border-blue-100">
+                <div className="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent mb-2">
+                  {statsLoading ? '...' : stats?.tradingVolume > 1000000 ? `₹${Math.floor(stats.tradingVolume / 1000000)}M+` : stats?.tradingVolume > 1000 ? `₹${Math.floor(stats.tradingVolume / 1000)}K+` : `₹${stats?.tradingVolume || 0}+`}
+                </div>
+                <div className="text-gray-600 font-medium">Trading Volume</div>
+              </div>
+              <div className="text-center p-6 bg-white/50 backdrop-blur-sm rounded-2xl border border-purple-100">
+                <div className="text-4xl font-bold bg-gradient-to-r from-purple-600 to-pink-600 bg-clip-text text-transparent mb-2">
+                  {statsLoading ? '...' : `${Math.floor(stats?.successRate || 0)}%`}
+                </div>
+                <div className="text-gray-600 font-medium">Success Rate</div>
+              </div>
             </div>
           </div>
         </div>
@@ -110,12 +150,16 @@ function LandingPage() {
                 <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                   <path fillRule="evenodd" d="M3.293 9.707a1 1 0 010-1.414l6-6a1 1 0 011.414 0l6 6a1 1 0 01-1.414 1.414L11 5.414V17a1 1 0 11-2 0V5.414L4.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
                 </svg>
-                <span className="text-sm font-bold">2.1%</span>
+                <span className="text-sm font-bold">{statsLoading ? '...' : `${stats?.dailySpicePrice?.changePercent || 0}%`}</span>
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-1 font-medium">Daily Spice Price</p>
-            <p className="text-3xl font-bold text-gray-900 mb-2">₹ 1,780/kg</p>
-            <p className="text-xs text-emerald-600 font-semibold">+₹45 from yesterday</p>
+            <p className="text-3xl font-bold text-gray-900 mb-2">
+              {statsLoading ? 'Loading...' : `₹ ${stats?.dailySpicePrice?.current?.toLocaleString() || '0'}/kg`}
+            </p>
+            <p className="text-xs text-emerald-600 font-semibold">
+              {statsLoading ? '' : `+₹${stats?.dailySpicePrice?.change || 0} from yesterday`}
+            </p>
           </div>
 
           <div className="bg-gradient-to-br from-white/90 to-purple-50/90 rounded-2xl shadow-lg border border-purple-100/50 p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 backdrop-blur-sm">
@@ -127,8 +171,10 @@ function LandingPage() {
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-1 font-medium">Top Auction Today</p>
-            <p className="text-3xl font-bold text-gray-900 mb-2">$3,45,000</p>
-            <p className="text-xs text-purple-600 font-semibold">A. Thomas</p>
+            <p className="text-3xl font-bold text-gray-900 mb-2">
+              {statsLoading ? 'Loading...' : `₹${stats?.topAuction?.amount?.toLocaleString() || '0'}`}
+            </p>
+            <p className="text-xs text-purple-600 font-semibold">{statsLoading ? '' : stats?.topAuction?.winner || 'N/A'}</p>
           </div>
 
           <div className="bg-gradient-to-br from-white/90 to-orange-50/90 rounded-2xl shadow-lg border border-orange-100/50 p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 backdrop-blur-sm">
@@ -140,8 +186,10 @@ function LandingPage() {
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-1 font-medium">Top Farmer</p>
-            <p className="text-3xl font-bold text-gray-900 mb-2">Mani S.</p>
-            <p className="text-xs text-orange-600 font-semibold">2.870 kg</p>
+            <p className="text-3xl font-bold text-gray-900 mb-2">{statsLoading ? 'Loading...' : stats?.topFarmer?.name || 'N/A'}</p>
+            <p className="text-xs text-orange-600 font-semibold">
+              {statsLoading ? '' : `${stats?.topFarmer?.volume?.toLocaleString() || '0'} kg`}
+            </p>
           </div>
 
           <div className="bg-gradient-to-br from-white/90 to-cyan-50/90 rounded-2xl shadow-lg border border-cyan-100/50 p-6 hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 backdrop-blur-sm">
@@ -153,7 +201,9 @@ function LandingPage() {
               </div>
             </div>
             <p className="text-sm text-gray-600 mb-1 font-medium">Active Listings</p>
-            <p className="text-3xl font-bold text-gray-900 mb-2">1,247</p>
+            <p className="text-3xl font-bold text-gray-900 mb-2">
+              {statsLoading ? 'Loading...' : stats?.activeListings?.toLocaleString() || '0'}
+            </p>
             <p className="text-xs text-cyan-600 font-semibold">+23 this week</p>
           </div>
         </div> 
@@ -204,7 +254,9 @@ function LandingPage() {
               </svg>
             </div>
             <p className="text-sm text-gray-600 mb-1 font-medium">Monthly Volume</p>
-            <p className="text-3xl font-bold text-gray-900 mb-2">₹ 2.4M</p>
+            <p className="text-3xl font-bold text-gray-900 mb-2">
+              {statsLoading ? 'Loading...' : `₹${(stats?.monthlyVolume / 1000000).toFixed(1)}M`}
+            </p>
             <p className="text-xs text-yellow-600 font-semibold">+12% from last month</p>
           </div>
 
@@ -215,7 +267,9 @@ function LandingPage() {
               </svg>
             </div>
             <p className="text-sm text-gray-600 mb-1 font-medium">Success Rate</p>
-            <p className="text-3xl font-bold text-gray-900 mb-2">94.2%</p>
+            <p className="text-3xl font-bold text-gray-900 mb-2">
+              {statsLoading ? 'Loading...' : `${stats?.successRate || 0}%`}
+            </p>
             <p className="text-xs text-green-600 font-semibold">+2.1% this month</p>
           </div>
 
@@ -226,7 +280,9 @@ function LandingPage() {
               </svg>
             </div>
             <p className="text-sm text-gray-600 mb-1 font-medium">Active Users</p>
-            <p className="text-3xl font-bold text-gray-900 mb-2">8,432</p>
+            <p className="text-3xl font-bold text-gray-900 mb-2">
+              {statsLoading ? 'Loading...' : stats?.activeUsers?.toLocaleString() || '0'}
+            </p>
             <p className="text-xs text-indigo-600 font-semibold">+156 this week</p>
           </div>
         </div>
@@ -399,16 +455,16 @@ function LandingPage() {
             <div>
               <h4 className="text-lg font-semibold mb-6">Contact</h4>
               <ul className="space-y-4">
-                <li className="text-gray-400">support@spiceschain.com</li>
-                <li className="text-gray-400">+91 98765 43210</li>
-                <li className="text-gray-400">Mumbai, India</li>
+                <li className="text-gray-400">spiceschain@gmail.com</li>
+                <li className="text-gray-400">+91 79024 86166</li>
+                <li className="text-gray-400">Kerala Kanjirapally</li>
               </ul>
             </div>
           </div>
           
           <div className="border-t border-gray-800 mt-12 pt-8 text-center">
             <div className="text-sm text-gray-400">
-              © 2024 SpicesChain. All rights reserved.
+              © 2025 SpicesChain. All rights reserved.
             </div>
           </div>
         </div>
