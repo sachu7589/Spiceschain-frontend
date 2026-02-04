@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
+import Chatbot from './Chatbot';
 
 const DashboardLayout = ({ 
   children, 
@@ -9,6 +10,7 @@ const DashboardLayout = ({
 }) => {
   const { user, logout } = useAuth();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);
@@ -266,6 +268,28 @@ const DashboardLayout = ({
           {children}
         </main>
       </div>
+
+      {/* Chatbot Floating Button - Only show when chatbot is closed */}
+      {!isChatbotOpen && (
+        <button
+          onClick={() => setIsChatbotOpen(true)}
+          className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-full shadow-2xl hover:shadow-emerald-500/50 flex items-center justify-center transition-all duration-300 hover:scale-110 z-40 group"
+          aria-label="Open chatbot"
+        >
+          <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+          </svg>
+          {/* Pulse animation ring */}
+          <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-75"></span>
+        </button>
+      )}
+
+      {/* Chatbot Component */}
+      <Chatbot 
+        isOpen={isChatbotOpen} 
+        onClose={() => setIsChatbotOpen(false)} 
+        userType={user?.userType || 'buyer'}
+      />
     </div>
   );
 };

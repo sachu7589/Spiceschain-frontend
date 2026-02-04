@@ -1451,8 +1451,36 @@ const YourAuctionsPage = ({ user }) => {
           })
         );
 
+        // Helper function to check if auction is completed
+        const isAuctionCompleted = (auction) => {
+          if (!auction) return false;
+          
+          // Check if auction has explicit completed status
+          const status = (auction.status || '').toLowerCase();
+          if (status === 'completed' || status === 'finished' || status === 'ended') {
+            return true;
+          }
+          
+          // Check if endDate has passed
+          if (auction.endDate) {
+            const now = new Date();
+            const endDate = new Date(auction.endDate);
+            if (now > endDate) {
+              return true;
+            }
+          }
+          
+          return false;
+        };
+
+        // Filter out completed auctions
+        const ongoingBids = bidsWithDetails.filter(bid => !isAuctionCompleted(bid.auction));
+
+        // Update myBids to only include ongoing bids
+        setMyBids(ongoingBids);
+
         // Group bids by farmer
-        const grouped = bidsWithDetails.reduce((acc, bid) => {
+        const grouped = ongoingBids.reduce((acc, bid) => {
           const farmerId = bid.farmerId;
           if (!acc[farmerId]) {
             acc[farmerId] = {
@@ -1748,6 +1776,12 @@ const YourAuctionsPage = ({ user }) => {
 const WinningBidsPage = ({ user }) => {
   const [winningBids, setWinningBids] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedBid, setSelectedBid] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isFeedbackModalOpen, setIsFeedbackModalOpen] = useState(false);
+  const [selectedBidForFeedback, setSelectedBidForFeedback] = useState(null);
+  const [rating, setRating] = useState(0);
+  const [feedback, setFeedback] = useState('');
 
   useEffect(() => {
     const fetchWinningBids = async () => {
@@ -2062,104 +2096,397 @@ const WinningBidsPage = ({ user }) => {
           <p className="text-gray-600">You haven't won any completed auctions yet. Keep bidding to win!</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {winningBids.map((bid, index) => (
-            <div key={bid._id || index} className="bg-gradient-to-br from-green-50 to-emerald-50 rounded-xl shadow-lg border-2 border-green-300 overflow-hidden">
-              {/* Winning Badge */}
-              <div className="bg-green-500 px-4 py-2 flex items-center space-x-2">
-                <svg className="w-5 h-5 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gradient-to-r from-green-500 to-emerald-600 text-white">
+                <tr>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Auction Name</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Farmer</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Spice</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Weight</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Winning Bid</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Status</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {winningBids.map((bid, index) => (
+                  <tr key={bid._id || index} className="hover:bg-green-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2">
+                        <svg className="w-5 h-5 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                        </svg>
+                        <span className="font-semibold text-gray-900">
+                          {bid.auction?.auctionName || bid.auction?.auctionTitle || 'Auction'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="font-medium text-gray-900">{bid.farmer?.fullName || 'Unknown Farmer'}</p>
+                        <p className="text-sm text-gray-500">{bid.farmer?.emailAddress || 'No email'}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">{bid.inventoryItem?.spiceName || 'N/A'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">{bid.inventoryItem?.weight || 0} kg</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-bold text-green-600 text-lg">
+                        ₹{(bid.currentBidPrice || 0).toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {bid.paymentDone ? (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                          <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                          </svg>
+                          Paid
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-yellow-100 text-yellow-800">
+                          Pending Payment
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className="flex items-center justify-center space-x-2">
+                        <button
+                          onClick={() => {
+                            setSelectedBid(bid);
+                            setIsModalOpen(true);
+                          }}
+                          className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          <span>View</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            setSelectedBidForFeedback(bid);
+                            setIsFeedbackModalOpen(true);
+                            setRating(0);
+                            setFeedback('');
+                          }}
+                          className="bg-purple-500 hover:bg-purple-600 text-white px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                          </svg>
+                          <span>Feedback</span>
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Details Modal */}
+      {isModalOpen && selectedBid && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-green-500 to-emerald-600 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+              <div className="flex items-center space-x-3">
+                <svg className="w-6 h-6 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
                   <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
                 </svg>
-                <span className="text-white font-bold text-sm">🎉 YOU WON!</span>
+                <h3 className="text-xl font-bold text-white">Winning Bid Details</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setSelectedBid(null);
+                }}
+                className="text-white hover:text-gray-200 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Auction Name */}
+              <div>
+                <h4 className="text-2xl font-bold text-gray-900 mb-2">
+                  {selectedBid.auction?.auctionName || selectedBid.auction?.auctionTitle || 'Auction'}
+                </h4>
               </div>
 
-              {/* Card Content */}
-              <div className="p-6">
-                {/* Auction Name */}
-                <h3 className="text-xl font-bold text-gray-900 mb-2">
-                  {bid.auction?.auctionName || bid.auction?.auctionTitle || 'Auction'}
-                </h3>
+              {/* Winning Bid Highlight */}
+              <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl p-6 text-white">
+                <p className="text-green-100 text-sm mb-2">Your Winning Bid</p>
+                <p className="text-4xl font-bold">₹{(selectedBid.currentBidPrice || 0).toLocaleString()}</p>
+              </div>
 
-                {/* Farmer Info */}
-                <div className="bg-white rounded-lg p-4 mb-4 border border-green-200">
-                  <p className="text-xs text-gray-500 mb-1">Farmer</p>
-                  <p className="font-bold text-gray-900">{bid.farmer?.fullName || 'Unknown Farmer'}</p>
-                  <p className="text-sm text-gray-600">{bid.farmer?.emailAddress || 'No email'}</p>
+              {/* Details Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Farmer Information */}
+                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                  <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span>Farmer Information</span>
+                  </h5>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Name</p>
+                      <p className="font-semibold text-gray-900">{selectedBid.farmer?.fullName || 'Unknown Farmer'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Email</p>
+                      <p className="font-medium text-gray-700">{selectedBid.farmer?.emailAddress || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Contact</p>
+                      <p className="font-medium text-gray-700">{selectedBid.farmer?.contactNumber || 'N/A'}</p>
+                    </div>
+                  </div>
                 </div>
 
-                {/* Inventory Info */}
-                <div className="grid grid-cols-3 gap-3 mb-4">
-                  <div className="bg-white rounded-lg p-3 border border-green-200">
-                    <p className="text-xs text-gray-500 mb-1">Spice</p>
-                    <p className="font-semibold text-gray-900 text-sm">{bid.inventoryItem?.spiceName || 'N/A'}</p>
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-green-200">
-                    <p className="text-xs text-gray-500 mb-1">Weight</p>
-                    <p className="font-semibold text-gray-900 text-sm">{bid.inventoryItem?.weight || 0} kg</p>
-                  </div>
-                  <div className="bg-white rounded-lg p-3 border border-green-200">
-                    <p className="text-xs text-gray-500 mb-1">Grade</p>
-                    <p className="font-semibold text-gray-900 text-sm">{bid.inventoryItem?.grade || 'N/A'}</p>
+                {/* Inventory Information */}
+                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                  <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                    <span>Inventory Details</span>
+                  </h5>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Spice Name</p>
+                      <p className="font-semibold text-gray-900">{selectedBid.inventoryItem?.spiceName || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Weight</p>
+                      <p className="font-semibold text-gray-900">{selectedBid.inventoryItem?.weight || 0} kg</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Grade</p>
+                      <p className="font-semibold text-gray-900">{selectedBid.inventoryItem?.grade || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Quality</p>
+                      <p className="font-semibold text-gray-900">{selectedBid.inventoryItem?.quality || 'N/A'}</p>
+                    </div>
                   </div>
                 </div>
+              </div>
 
-                {/* Your Winning Bid */}
-                <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg p-4 text-white mb-4">
-                  <p className="text-green-100 text-sm mb-1">Your Winning Bid</p>
-                  <p className="text-3xl font-bold">₹{(bid.currentBidPrice || 0).toLocaleString()}</p>
-                </div>
-
-                {/* Details Grid */}
-                <div className="grid grid-cols-2 gap-3 text-sm mb-4">
+              {/* Auction Statistics */}
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                  </svg>
+                  <span>Auction Statistics</span>
+                </h5>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
-                    <p className="text-gray-500 mb-1">Total Bidders</p>
-                    <p className="font-semibold text-gray-900">{bid.allBidsForInventory.length} competed</p>
+                    <p className="text-xs text-gray-500 mb-1">Total Bidders</p>
+                    <p className="font-bold text-gray-900 text-lg">{selectedBid.allBidsForInventory.length} competed</p>
                   </div>
                   <div>
-                    <p className="text-gray-500 mb-1">Auction Ended</p>
-                    <p className="font-semibold text-gray-900 text-xs">
-                      {bid.auction?.endDate ? formatDate(bid.auction.endDate) : 'N/A'}
+                    <p className="text-xs text-gray-500 mb-1">Auction Started</p>
+                    <p className="font-medium text-gray-700 text-sm">
+                      {selectedBid.auction?.startDate ? formatDate(selectedBid.auction.startDate) : 'N/A'}
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Auction Ended</p>
+                    <p className="font-medium text-gray-700 text-sm">
+                      {selectedBid.auction?.endDate ? formatDate(selectedBid.auction.endDate) : 'N/A'}
                     </p>
                   </div>
                 </div>
+              </div>
 
-                {/* Success Message */}
-                <div className="bg-green-100 border border-green-300 rounded-lg p-3 flex items-center space-x-2 mb-4">
-                  <svg className="w-5 h-5 text-green-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <p className="text-sm text-green-800 font-medium">
-                    Congratulations! You won this auction with the highest bid.
-                  </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Feedback and Rating Modal */}
+      {isFeedbackModalOpen && selectedBidForFeedback && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-purple-500 to-indigo-600 px-6 py-4 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <svg className="w-6 h-6 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+                <h3 className="text-xl font-bold text-white">Feedback & Rating</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setIsFeedbackModalOpen(false);
+                  setSelectedBidForFeedback(null);
+                  setRating(0);
+                  setFeedback('');
+                }}
+                className="text-white hover:text-gray-200 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Rating Section */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-3">
+                  Rate your experience <span className="text-red-500">*</span>
+                </label>
+                <div className="flex items-center space-x-2">
+                  {[1, 2, 3, 4, 5].map((star) => (
+                    <button
+                      key={star}
+                      type="button"
+                      onClick={() => setRating(star)}
+                      className="focus:outline-none transition-transform hover:scale-110"
+                    >
+                      <svg
+                        className={`w-10 h-10 ${
+                          star <= rating
+                            ? 'text-yellow-400 fill-current'
+                            : 'text-gray-300'
+                        }`}
+                        fill="currentColor"
+                        viewBox="0 0 20 20"
+                      >
+                        <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                      </svg>
+                    </button>
+                  ))}
                 </div>
-
-                {/* Payment Button */}
-                {bid.paymentDone ? (
-                  <button
-                    disabled
-                    className="w-full bg-gradient-to-r from-green-500 to-emerald-600 text-white py-3 rounded-lg font-semibold flex items-center justify-center space-x-2 shadow-md cursor-not-allowed"
-                  >
-                    <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                    </svg>
-                    <span>Payment Successful</span>
-                  </button>
-                ) : (
-                  <button
-                    onClick={() => handlePayment(bid)}
-                    className="w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white py-3 rounded-lg font-semibold transition-all duration-200 flex items-center justify-center space-x-2 shadow-md hover:shadow-lg transform hover:-translate-y-0.5"
-                  >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 10h18M7 15h1m4 0h1m-7 4h12a3 3 0 003-3V8a3 3 0 00-3-3H6a3 3 0 00-3 3v8a3 3 0 003 3z" />
-                    </svg>
-                    <span>Make Payment</span>
-                  </button>
+                {rating > 0 && (
+                  <p className="text-sm text-gray-600 mt-2">
+                    {rating === 1 && 'Poor'}
+                    {rating === 2 && 'Fair'}
+                    {rating === 3 && 'Good'}
+                    {rating === 4 && 'Very Good'}
+                    {rating === 5 && 'Excellent'}
+                  </p>
                 )}
               </div>
+
+              {/* Feedback Section */}
+              <div>
+                <label className="block text-sm font-semibold text-gray-900 mb-2">
+                  Your Feedback <span className="text-red-500">*</span>
+                </label>
+                <textarea
+                  value={feedback}
+                  onChange={(e) => setFeedback(e.target.value)}
+                  placeholder="Share your experience with this auction and farmer..."
+                  rows={6}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent resize-none"
+                />
+                <p className="text-xs text-gray-500 mt-1">{feedback.length} characters</p>
+              </div>
+
+              {/* Submit Button */}
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200">
+                <button
+                  onClick={() => {
+                    setIsFeedbackModalOpen(false);
+                    setSelectedBidForFeedback(null);
+                    setRating(0);
+                    setFeedback('');
+                  }}
+                  className="px-6 py-2 border border-gray-300 rounded-lg text-gray-700 font-medium hover:bg-gray-50 transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={async () => {
+                    if (rating === 0 || !feedback.trim()) {
+                      Swal.fire({
+                        icon: 'warning',
+                        title: 'Required Fields',
+                        text: 'Please provide both a rating and feedback before submitting.',
+                        confirmButtonColor: '#f59e0b'
+                      });
+                      return;
+                    }
+
+                    try {
+                      // Show loading
+                      Swal.fire({
+                        title: 'Submitting...',
+                        allowOutsideClick: false,
+                        didOpen: () => {
+                          Swal.showLoading();
+                        }
+                      });
+
+                      // Here you would typically send the feedback to your backend API
+                      // await feedbackAPI.submitFeedback({
+                      //   buyerId: user?.id || user?._id,
+                      //   farmerId: selectedBidForFeedback.farmerId,
+                      //   auctionId: selectedBidForFeedback.auctionId,
+                      //   inventoryId: selectedBidForFeedback.inventoryId,
+                      //   rating: rating,
+                      //   feedback: feedback
+                      // });
+
+                      // Simulate API call
+                      await new Promise(resolve => setTimeout(resolve, 1000));
+
+                      // Show success
+                      Swal.fire({
+                        icon: 'success',
+                        title: 'Thank You!',
+                        text: 'Your feedback has been submitted successfully.',
+                        confirmButtonColor: '#10b981'
+                      });
+
+                      // Close modal and reset
+                      setIsFeedbackModalOpen(false);
+                      setSelectedBidForFeedback(null);
+                      setRating(0);
+                      setFeedback('');
+                    } catch (error) {
+                      console.error('Error submitting feedback:', error);
+                      Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Failed to submit feedback. Please try again.',
+                        confirmButtonColor: '#ef4444'
+                      });
+                    }
+                  }}
+                  disabled={rating === 0 || !feedback.trim()}
+                  className="px-6 py-2 bg-gradient-to-r from-purple-500 to-indigo-600 hover:from-purple-600 hover:to-indigo-700 text-white rounded-lg font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center space-x-2"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span>Submit Feedback</span>
+                </button>
+              </div>
             </div>
-          ))}
           </div>
-        )}
+        </div>
+      )}
     </div>
   );
 };
@@ -2168,6 +2495,8 @@ const WinningBidsPage = ({ user }) => {
 const BuyerPaymentsPage = ({ user }) => {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchPayments = async () => {
@@ -2275,69 +2604,208 @@ const BuyerPaymentsPage = ({ user }) => {
           <p className="text-gray-600">You haven't made any payments yet.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6">
-          {payments.map((payment, index) => (
-            <div key={payment._id || index} className="bg-white rounded-xl shadow-lg border-2 border-blue-200 overflow-hidden hover:shadow-xl transition-shadow">
-              {/* Payment Badge */}
-              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-3 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-white font-bold text-sm">✓ PAYMENT COMPLETED</span>
-                </div>
-                <span className="text-white text-sm opacity-90">{formatDate(payment.createdAt || payment.paymentDate)}</span>
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gradient-to-r from-blue-500 to-indigo-600 text-white">
+                <tr>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Auction Name</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Farmer</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Spice</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Amount Paid</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Payment Date</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {payments.map((payment, index) => (
+                  <tr key={payment._id || index} className="hover:bg-blue-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2">
+                        <svg className="w-5 h-5 text-blue-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span className="font-semibold text-gray-900">
+                          {payment.auction?.auctionName || payment.auction?.auctionTitle || 'Auction'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="font-medium text-gray-900">{payment.farmer?.fullName || 'Unknown Farmer'}</p>
+                        <p className="text-sm text-gray-500">{payment.farmer?.emailAddress || 'No email'}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">{payment.inventory?.spiceName || 'N/A'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-bold text-blue-600 text-lg">
+                        ₹{(payment.amount || 0).toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-700">
+                        {formatDate(payment.createdAt || payment.paymentDate)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        onClick={() => {
+                          setSelectedPayment(payment);
+                          setIsModalOpen(true);
+                        }}
+                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-1 mx-auto"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        <span>View More</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Details Modal */}
+      {isModalOpen && selectedPayment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-blue-500 to-indigo-600 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+              <div className="flex items-center space-x-3">
+                <svg className="w-6 h-6 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <h3 className="text-xl font-bold text-white">Payment Details</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setSelectedPayment(null);
+                }}
+                className="text-white hover:text-gray-200 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Auction Name */}
+              <div>
+                <h4 className="text-2xl font-bold text-gray-900 mb-2">
+                  {selectedPayment.auction?.auctionName || selectedPayment.auction?.auctionTitle || 'Auction'}
+                </h4>
               </div>
 
-              {/* Payment Details */}
-              <div className="p-6">
-                {/* Amount */}
-                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-4 mb-4 border border-blue-200">
-                  <p className="text-blue-700 text-sm mb-1 font-medium">Amount Paid</p>
-                  <p className="text-3xl font-bold text-blue-600">₹{(payment.amount || 0).toLocaleString()}</p>
-                </div>
+              {/* Amount Paid Highlight */}
+              <div className="bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl p-6 text-white">
+                <p className="text-blue-100 text-sm mb-2">Amount Paid</p>
+                <p className="text-4xl font-bold">₹{(selectedPayment.amount || 0).toLocaleString()}</p>
+                <p className="text-blue-100 text-sm mt-2">Payment Status: Completed ✓</p>
+              </div>
 
-                {/* Details Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  {/* Farmer Info */}
-                  <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                    <p className="text-xs text-green-600 mb-2 font-semibold">FARMER DETAILS</p>
-                    <p className="font-bold text-gray-900">{payment.farmer?.fullName || 'Unknown Farmer'}</p>
-                    <p className="text-sm text-gray-600">{payment.farmer?.contactNumber || 'No contact'}</p>
-                  </div>
-
-                  {/* Auction Info */}
-                  <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                    <p className="text-xs text-purple-600 mb-2 font-semibold">AUCTION DETAILS</p>
-                    <p className="font-bold text-gray-900">{payment.auction?.auctionName || payment.auction?.auctionTitle || 'N/A'}</p>
-                    <p className="text-sm text-gray-600">Status: {payment.auction?.status || 'Completed'}</p>
-                  </div>
-                </div>
-
-                {/* Inventory Info */}
-                <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
-                  <p className="text-xs text-amber-700 mb-2 font-semibold">PRODUCT DETAILS</p>
-                  <div className="flex justify-between items-center">
+              {/* Details Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Farmer Information */}
+                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                  <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                    <svg className="w-5 h-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span>Farmer Information</span>
+                  </h5>
+                  <div className="space-y-3">
                     <div>
-                      <p className="font-bold text-gray-900">{payment.inventory?.spiceName || 'N/A'}</p>
-                      <p className="text-sm text-gray-600">Grade: {payment.inventory?.grade || 'N/A'}</p>
+                      <p className="text-xs text-gray-500 mb-1">Name</p>
+                      <p className="font-semibold text-gray-900">{selectedPayment.farmer?.fullName || 'Unknown Farmer'}</p>
                     </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-amber-700">{payment.inventory?.weight || 0} kg</p>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Email</p>
+                      <p className="font-medium text-gray-700">{selectedPayment.farmer?.emailAddress || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Contact</p>
+                      <p className="font-medium text-gray-700">{selectedPayment.farmer?.contactNumber || 'N/A'}</p>
                     </div>
                   </div>
                 </div>
 
-                {/* Payment ID */}
-                {payment.paymentId && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <p className="text-xs text-gray-500">Payment ID</p>
-                    <p className="text-sm font-mono text-gray-700">{payment.paymentId}</p>
+                {/* Inventory Information */}
+                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                  <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                    <span>Product Details</span>
+                  </h5>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Spice Name</p>
+                      <p className="font-semibold text-gray-900">{selectedPayment.inventory?.spiceName || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Weight</p>
+                      <p className="font-semibold text-gray-900">{selectedPayment.inventory?.weight || 0} kg</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Grade</p>
+                      <p className="font-semibold text-gray-900">{selectedPayment.inventory?.grade || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Quality</p>
+                      <p className="font-semibold text-gray-900">{selectedPayment.inventory?.quality || 'N/A'}</p>
+                    </div>
                   </div>
-                )}
+                </div>
+              </div>
+
+              {/* Payment Information */}
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  <span>Payment Information</span>
+                </h5>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Payment Date</p>
+                    <p className="font-medium text-gray-700">
+                      {formatDate(selectedPayment.createdAt || selectedPayment.paymentDate)}
+                    </p>
+                  </div>
+                  {selectedPayment.paymentId && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Payment ID</p>
+                      <p className="font-mono text-sm text-gray-700">{selectedPayment.paymentId}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Auction Status</p>
+                    <p className="font-medium text-gray-700">{selectedPayment.auction?.status || 'Completed'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Payment Status</p>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-800">
+                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      Completed
+                    </span>
+                  </div>
+                </div>
               </div>
             </div>
-          ))}
+          </div>
         </div>
       )}
     </div>

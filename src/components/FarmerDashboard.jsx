@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useAuth } from '../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
 import InventoryManagement from './InventoryManagement';
+import Chatbot from './Chatbot';
 import { spicePricesAPI, weatherAPI, locationAPI, auctionAPI, inventoryAPI, authAPI } from '../services/api';
 import Swal from 'sweetalert2';
 import {
@@ -35,6 +37,7 @@ const FarmerDashboard = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeMenu, setActiveMenu] = useState('dashboard');
   const [showVerificationModal, setShowVerificationModal] = useState(false);
+  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
 
   if (!user) {
     return (
@@ -61,24 +64,86 @@ const FarmerDashboard = () => {
     setActiveMenu(menu);
   };
 
+  // Wrapper component to add chatbot to each menu section
+  const MenuWithChatbot = ({ children }) => {
+    return (
+      <>
+        {children}
+        {/* Chatbot Floating Button - Only show when chatbot is closed */}
+        {!isChatbotOpen && typeof document !== 'undefined' && createPortal(
+          <button
+            onClick={() => setIsChatbotOpen(true)}
+            className="fixed bottom-6 right-6 w-14 h-14 bg-gradient-to-r from-emerald-500 to-teal-600 text-white rounded-full shadow-2xl hover:shadow-emerald-500/50 flex items-center justify-center transition-all duration-300 hover:scale-110 z-[100] group"
+            aria-label="Open chatbot"
+          >
+            <svg className="w-6 h-6 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+            </svg>
+            {/* Pulse animation ring */}
+            <span className="absolute inset-0 rounded-full bg-emerald-400 animate-ping opacity-75"></span>
+          </button>,
+          document.body
+        )}
+        {/* Chatbot Component */}
+        <Chatbot 
+          isOpen={isChatbotOpen} 
+          onClose={() => setIsChatbotOpen(false)} 
+          userType={user?.userType || 'farmer'}
+        />
+      </>
+    );
+  };
+
   const renderDashboardContent = () => {
     switch (activeMenu) {
       case 'dashboard':
-        return <FarmerDashboardOverview user={user} navigate={navigate} onMenuChange={setActiveMenu} />;
+        return (
+          <MenuWithChatbot>
+            <FarmerDashboardOverview user={user} navigate={navigate} onMenuChange={setActiveMenu} />
+          </MenuWithChatbot>
+        );
       case 'inventory':
-        return <InventoryManagement user={user} />;
+        return (
+          <MenuWithChatbot>
+            <InventoryManagement user={user} />
+          </MenuWithChatbot>
+        );
       case 'auction':
-        return <AuctionList />;
+        return (
+          <MenuWithChatbot>
+            <AuctionList />
+          </MenuWithChatbot>
+        );
       case 'ongoing-auctions':
-        return <FarmerOngoingAuctions user={user} />;
+        return (
+          <MenuWithChatbot>
+            <FarmerOngoingAuctions user={user} />
+          </MenuWithChatbot>
+        );
       case 'completed-auctions':
-        return <FarmerCompletedAuctions user={user} />;
+        return (
+          <MenuWithChatbot>
+            <FarmerCompletedAuctions user={user} />
+          </MenuWithChatbot>
+        );
       case 'bank-details':
-        return <FarmerBankDetails user={user} />;
+        return (
+          <MenuWithChatbot>
+            <FarmerBankDetails user={user} />
+          </MenuWithChatbot>
+        );
       case 'payments':
-        return <FarmerPayments user={user} />;
+        return (
+          <MenuWithChatbot>
+            <FarmerPayments user={user} />
+          </MenuWithChatbot>
+        );
       default:
-        return <FarmerDashboardOverview user={user} navigate={navigate} onMenuChange={setActiveMenu} />;
+        return (
+          <MenuWithChatbot>
+            <FarmerDashboardOverview user={user} navigate={navigate} onMenuChange={setActiveMenu} />
+          </MenuWithChatbot>
+        );
     }
   };
 
@@ -2359,53 +2424,85 @@ const FarmerCompletedAuctions = ({ user }) => {
           <p className="text-gray-600">You don't have any completed auctions yet.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {completedAuctions.map((item, idx) => (
-            <div key={idx} className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
-              {/* Header */}
-              <div className="bg-gradient-to-r from-gray-500 to-gray-600 p-4 text-white">
-                <h3 className="text-lg font-bold">{item.auction?.auctionName || 'Auction'}</h3>
-                <p className="text-gray-200 text-sm">
-                  {item.inventory?.spiceName} • {item.inventory?.weight} kg • Grade {item.inventory?.grade}
-                </p>
-              </div>
-
-              {/* Winner Details */}
-              <div className="p-6">
-                {item.winner ? (
-                  <div className="space-y-4">
-                    <div className="bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg p-4 text-white">
-                      <p className="text-green-100 text-sm mb-1">🏆 Winner</p>
-                      <p className="text-xl font-bold">{item.winner.fullName || item.winner.name || 'Unknown Buyer'}</p>
-                      <p className="text-green-100 text-sm">{item.winner.emailAddress || item.winner.email}</p>
-                    </div>
-
-                    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
-                      <p className="text-sm text-gray-600 mb-1">Winning Bid</p>
-                      <p className="text-3xl font-bold text-green-600">₹{(item.winner.bidAmount || 0).toLocaleString()}</p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div>
-                        <p className="text-gray-500 mb-1">Total Bids</p>
-                        <p className="font-semibold text-gray-900">{item.totalBids}</p>
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gradient-to-r from-gray-500 to-gray-600 text-white">
+                <tr>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Auction Name</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Spice</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Weight</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Winner</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Winning Bid</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Total Bids</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Ended Date</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {completedAuctions.map((item, idx) => (
+                  <tr key={idx} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2">
+                        <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                        </svg>
+                        <span className="font-semibold text-gray-900">
+                          {item.auction?.auctionName || 'Auction'}
+                        </span>
                       </div>
+                    </td>
+                    <td className="px-6 py-4">
                       <div>
-                        <p className="text-gray-500 mb-1">Auction Ended</p>
-                        <p className="font-semibold text-gray-900 text-xs">
-                          {item.auction?.endDate ? new Date(item.auction.endDate).toLocaleDateString() : 'N/A'}
-                        </p>
+                        <p className="font-medium text-gray-900">{item.inventory?.spiceName || 'N/A'}</p>
+                        <p className="text-sm text-gray-500">Grade {item.inventory?.grade || 'N/A'}</p>
                       </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-8">
-                    <p className="text-gray-500">No bids received</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">{item.inventory?.weight || 0} kg</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {item.winner ? (
+                        <div>
+                          <div className="flex items-center space-x-1 mb-1">
+                            <svg className="w-4 h-4 text-yellow-500" fill="currentColor" viewBox="0 0 20 20">
+                              <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                            </svg>
+                            <p className="font-semibold text-gray-900">
+                              {item.winner.fullName || item.winner.name || 'Unknown Buyer'}
+                            </p>
+                          </div>
+                          <p className="text-sm text-gray-500">{item.winner.emailAddress || item.winner.email || 'N/A'}</p>
+                        </div>
+                      ) : (
+                        <span className="text-gray-400 italic">No bids</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      {item.winner ? (
+                        <span className="font-bold text-green-600 text-lg">
+                          ₹{(item.winner.bidAmount || 0).toLocaleString()}
+                        </span>
+                      ) : (
+                        <span className="text-gray-400">-</span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">{item.totalBids || 0}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-700">
+                        {item.auction?.endDate ? new Date(item.auction.endDate).toLocaleDateString('en-US', {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric'
+                        }) : 'N/A'}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
@@ -2762,6 +2859,8 @@ const FarmerBankDetails = ({ user }) => {
 const FarmerPayments = ({ user }) => {
   const [payments, setPayments] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedPayment, setSelectedPayment] = useState(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchPayments = async () => {
@@ -2869,71 +2968,211 @@ const FarmerPayments = ({ user }) => {
           <p className="text-gray-600">You haven't received any payments yet.</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-6">
-          {payments.map((payment, index) => (
-            <div key={payment._id || index} className="bg-white rounded-xl shadow-lg border-2 border-emerald-200 overflow-hidden hover:shadow-xl transition-shadow">
-              {/* Payment Badge */}
-              <div className="bg-gradient-to-r from-emerald-500 to-green-600 px-6 py-3 flex items-center justify-between">
-                <div className="flex items-center space-x-2">
-                  <svg className="w-5 h-5 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                  <span className="text-white font-bold text-sm">✓ PAYMENT RECEIVED</span>
-                </div>
-                <span className="text-white text-sm opacity-90">{formatDate(payment.createdAt || payment.paymentDate)}</span>
-              </div>
-
-              {/* Payment Details */}
-              <div className="p-6">
-                {/* Amount */}
-                <div className="bg-gradient-to-r from-emerald-50 to-green-50 rounded-lg p-4 mb-4 border border-emerald-200">
-                  <p className="text-emerald-700 text-sm mb-1 font-medium">Amount Received</p>
-                  <p className="text-3xl font-bold text-emerald-600">₹{(payment.amount || 0).toLocaleString()}</p>
-                </div>
-
-                {/* Details Grid */}
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  {/* Buyer Info */}
-                  <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                    <p className="text-xs text-blue-600 mb-2 font-semibold">BUYER DETAILS</p>
-                    <p className="font-bold text-gray-900">{payment.buyer?.fullName || 'Unknown Buyer'}</p>
-                    <p className="text-sm text-gray-600">{payment.buyer?.contactNumber || 'No contact'}</p>
-                  </div>
-
-                  {/* Auction Info */}
-                  <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                    <p className="text-xs text-purple-600 mb-2 font-semibold">AUCTION DETAILS</p>
-                    <p className="font-bold text-gray-900">{payment.auction?.auctionName || payment.auction?.auctionTitle || 'N/A'}</p>
-                    <p className="text-sm text-gray-600">Status: {payment.auction?.status || 'Completed'}</p>
-                  </div>
-                </div>
-
-                {/* Inventory Info */}
-                <div className="bg-amber-50 rounded-lg p-4 border border-amber-200">
-                  <p className="text-xs text-amber-700 mb-2 font-semibold">PRODUCT DETAILS</p>
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <p className="font-bold text-gray-900">{payment.inventory?.spiceName || 'N/A'}</p>
-                      <p className="text-sm text-gray-600">Grade: {payment.inventory?.grade || 'N/A'}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-2xl font-bold text-amber-700">{payment.inventory?.weight || 0} kg</p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Payment ID */}
-                {payment.paymentId && (
-                  <div className="mt-4 pt-4 border-t border-gray-200">
-                    <p className="text-xs text-gray-500">Payment ID</p>
-                    <p className="text-sm font-mono text-gray-700">{payment.paymentId}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          ))}
+        <div className="bg-white rounded-xl shadow-lg border border-gray-200 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead className="bg-gradient-to-r from-emerald-500 to-green-600 text-white">
+                <tr>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Auction Name</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Buyer</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Spice</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Amount Received</th>
+                  <th className="px-6 py-4 text-left text-sm font-semibold">Payment Date</th>
+                  <th className="px-6 py-4 text-center text-sm font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-200">
+                {payments.map((payment, index) => (
+                  <tr key={payment._id || index} className="hover:bg-emerald-50 transition-colors">
+                    <td className="px-6 py-4">
+                      <div className="flex items-center space-x-2">
+                        <svg className="w-5 h-5 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        <span className="font-semibold text-gray-900">
+                          {payment.auction?.auctionName || payment.auction?.auctionTitle || 'Auction'}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div>
+                        <p className="font-medium text-gray-900">{payment.buyer?.fullName || 'Unknown Buyer'}</p>
+                        <p className="text-sm text-gray-500">{payment.buyer?.emailAddress || 'No email'}</p>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-medium text-gray-900">{payment.inventory?.spiceName || 'N/A'}</span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="font-bold text-emerald-600 text-lg">
+                        ₹{(payment.amount || 0).toLocaleString()}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm text-gray-700">
+                        {formatDate(payment.createdAt || payment.paymentDate)}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <button
+                        onClick={() => {
+                          setSelectedPayment(payment);
+                          setIsModalOpen(true);
+                        }}
+                        className="bg-emerald-500 hover:bg-emerald-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center space-x-1 mx-auto"
+                      >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                        </svg>
+                        <span>View More</span>
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
+
+      {/* Payment Details Modal */}
+      {isModalOpen && selectedPayment && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full">
+            {/* Modal Header */}
+            <div className="bg-gradient-to-r from-emerald-500 to-green-600 px-6 py-4 flex items-center justify-between sticky top-0 z-10">
+              <div className="flex items-center space-x-3">
+                <svg className="w-6 h-6 text-yellow-300" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+                <h3 className="text-xl font-bold text-white">Payment Details</h3>
+              </div>
+              <button
+                onClick={() => {
+                  setIsModalOpen(false);
+                  setSelectedPayment(null);
+                }}
+                className="text-white hover:text-gray-200 transition-colors"
+              >
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Auction Name */}
+              <div>
+                <h4 className="text-2xl font-bold text-gray-900 mb-2">
+                  {selectedPayment.auction?.auctionName || selectedPayment.auction?.auctionTitle || 'Auction'}
+                </h4>
+              </div>
+
+              {/* Amount Received Highlight */}
+              <div className="bg-gradient-to-r from-emerald-500 to-green-600 rounded-xl p-6 text-white">
+                <p className="text-emerald-100 text-sm mb-2">Amount Received</p>
+                <p className="text-4xl font-bold">₹{(selectedPayment.amount || 0).toLocaleString()}</p>
+                <p className="text-emerald-100 text-sm mt-2">Payment Status: Received ✓</p>
+              </div>
+
+              {/* Details Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Buyer Information */}
+                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                  <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                    <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                    </svg>
+                    <span>Buyer Information</span>
+                  </h5>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Name</p>
+                      <p className="font-semibold text-gray-900">{selectedPayment.buyer?.fullName || 'Unknown Buyer'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Email</p>
+                      <p className="font-medium text-gray-700">{selectedPayment.buyer?.emailAddress || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Contact</p>
+                      <p className="font-medium text-gray-700">{selectedPayment.buyer?.contactNumber || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Inventory Information */}
+                <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                  <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                    <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
+                    </svg>
+                    <span>Product Details</span>
+                  </h5>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Spice Name</p>
+                      <p className="font-semibold text-gray-900">{selectedPayment.inventory?.spiceName || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Weight</p>
+                      <p className="font-semibold text-gray-900">{selectedPayment.inventory?.weight || 0} kg</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Grade</p>
+                      <p className="font-semibold text-gray-900">{selectedPayment.inventory?.grade || 'N/A'}</p>
+                    </div>
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Quality</p>
+                      <p className="font-semibold text-gray-900">{selectedPayment.inventory?.quality || 'N/A'}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Payment Information */}
+              <div className="bg-gray-50 rounded-xl p-5 border border-gray-200">
+                <h5 className="text-lg font-semibold text-gray-900 mb-4 flex items-center space-x-2">
+                  <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+                  </svg>
+                  <span>Payment Information</span>
+                </h5>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Payment Date</p>
+                    <p className="font-medium text-gray-700">
+                      {formatDate(selectedPayment.createdAt || selectedPayment.paymentDate)}
+                    </p>
+                  </div>
+                  {selectedPayment.paymentId && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">Payment ID</p>
+                      <p className="font-mono text-sm text-gray-700">{selectedPayment.paymentId}</p>
+                    </div>
+                  )}
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Auction Status</p>
+                    <p className="font-medium text-gray-700">{selectedPayment.auction?.status || 'Completed'}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-gray-500 mb-1">Payment Status</p>
+                    <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                      <svg className="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                      Received
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 };

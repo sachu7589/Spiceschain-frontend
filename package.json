@@ -8,9 +8,7 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview",
-    "test:selenium": "node tests/selenium/setup.test.js",
-    "test:selenium:advanced": "node tests/selenium/advanced-tests.test.js",
-    "test:all": "npm run test:selenium && npm run test:selenium:advanced"
+    "test:selenium": "node tests/selenium/setup.test.js"
   },
   "dependencies": {
     "axios": "^1.7.7",
